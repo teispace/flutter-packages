@@ -102,7 +102,7 @@ void main() {
   });
 
   group('a rule restricted to fields', () {
-    final ability = PureAbility([
+    final ability = Ability([
       RawRule.of(action: 'read', subject: 'Article'),
       RawRule.of(action: 'update', subject: 'Article', fields: const ['title']),
     ]);
@@ -127,7 +127,7 @@ void main() {
     test('a forbidding rule does not answer the "any field" question', () {
       // It takes a field away rather than granting one, so letting it match
       // here would end the search at a rule that never permits anything.
-      final restricted = PureAbility([
+      final restricted = Ability([
         RawRule.of(action: 'update', subject: 'Article'),
         RawRule.of(
           action: 'update',
@@ -147,7 +147,7 @@ void main() {
     const allFields = ['title', 'body', 'published', 'authorId'];
 
     test('lists everything when a rule names no fields', () {
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(action: 'update', subject: 'Article'),
       ]);
 
@@ -158,7 +158,7 @@ void main() {
     });
 
     test('narrows to what the rules name', () {
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(
           action: 'update',
           subject: 'Article',
@@ -175,7 +175,7 @@ void main() {
     test('a later forbidding rule takes fields back', () {
       // The reason this cannot be answered field by field: `can(...,'body')`
       // is right about each one, but building the list needs the ordering.
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(action: 'update', subject: 'Article'),
         RawRule.of(
           action: 'update',
@@ -192,7 +192,7 @@ void main() {
     });
 
     test('and a later permitting rule gives them back again', () {
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(action: 'update', subject: 'Article'),
         RawRule.of(
           action: 'update',
@@ -215,7 +215,7 @@ void main() {
 
     test('patterns are resolved against the real field names', () {
       // A rule says `address.*`; a form needs `address.city`.
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(
           action: 'read',
           subject: 'User',
@@ -237,7 +237,7 @@ void main() {
     test("the order is the caller's, not the rules'", () {
       // This drives a form, and field order is a design decision rather than
       // an accident of how the rules were written.
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(
           action: 'update',
           subject: 'Article',

@@ -1,3 +1,5 @@
+import 'package:casl/src/conditions/condition.dart';
+
 /// The result of compiling one rule's conditions.
 ///
 /// Compiled once and reused, because a rule is checked far more often than it
@@ -16,6 +18,17 @@ abstract interface class ConditionsMatch {
   /// forbidding rule is only allowed to answer for the whole type when its
   /// conditions restrict nothing.
   bool get matchesEverything;
+}
+
+/// A [ConditionsMatch] that can hand back the tree it parsed.
+///
+/// Implemented by the built-in Mongo matcher, and worth implementing in a
+/// custom one: it is what lets `rulesToCondition` turn a grant into a database
+/// query. A matcher that cannot answer still works for `can`; it only rules
+/// itself out of query building.
+abstract interface class ParsedConditions implements ConditionsMatch {
+  /// The parsed conditions.
+  Condition get condition;
 }
 
 /// Compiles a rule's `conditions` into something that can be asked.

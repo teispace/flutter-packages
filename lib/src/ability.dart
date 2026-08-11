@@ -6,7 +6,7 @@ import 'package:casl/src/rule_index.dart';
 /// What a user may do, and the only thing the rest of an app needs to ask.
 ///
 /// ```dart
-/// final ability = PureAbility([
+/// final ability = Ability([
 ///   RawRule.of(action: 'read', subject: 'Article'),
 ///   RawRule.of(action: 'manage', subject: 'Article', inverted: true),
 /// ]);
@@ -16,13 +16,16 @@ import 'package:casl/src/rule_index.dart';
 ///
 /// See `AbilityBuilder` for the readable way to write rules by hand.
 ///
-/// "Pure" because it understands no condition language of its own: a rule with
-/// `conditions` needs a [ConditionsMatcher], and `createMongoAbility` is the
-/// one most people want. Without one, such a rule throws when it is compiled
-/// rather than silently matching nothing.
-class PureAbility extends RuleIndex {
+/// It understands no condition language of its own: a rule with `conditions`
+/// needs a [ConditionsMatcher], and `createMongoAbility` supplies the one most
+/// people want. Without one, such a rule throws when it is compiled rather
+/// than silently matching nothing.
+///
+/// Named as CASL.js v7 names it. Its `PureAbility` from v6 is this class; the
+/// old `Ability` that bundled a Mongo matcher is `createMongoAbility` here.
+class Ability extends RuleIndex {
   /// Creates an ability over [rules].
-  PureAbility(
+  Ability(
     super.rules, {
     super.conditionsMatcher,
     super.fieldsMatcher,
@@ -125,13 +128,13 @@ class PureAbility extends RuleIndex {
   }
 }
 
-/// A rule change, as reported to an [PureAbility.on] listener.
+/// A rule change, as reported to an [Ability.on] listener.
 final class AbilityUpdate {
   /// Creates the event.
   const AbilityUpdate(this.ability, this.rules);
 
   /// The ability being changed.
-  final PureAbility ability;
+  final Ability ability;
 
   /// The rules it is changing to.
   final List<RawRule> rules;

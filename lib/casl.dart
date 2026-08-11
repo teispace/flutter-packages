@@ -40,6 +40,7 @@ export 'src/fields/permitted_fields.dart';
 export 'src/interop/forbidden_error.dart';
 export 'src/interop/pack_rules.dart';
 export 'src/matchers.dart';
+export 'src/query/rules_to_condition.dart';
 export 'src/raw_rule.dart';
 export 'src/rule.dart';
 export 'src/rule_index.dart';

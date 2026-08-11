@@ -66,11 +66,11 @@ class AbilityBuilder {
 
   /// Builds an ability over everything collected.
   ///
-  /// Pass [create] to build something other than a bare [PureAbility] —
+  /// Pass [create] to build something other than a bare [Ability] —
   /// `createMongoAbility` being the usual one.
-  T build<T extends PureAbility>({
+  T build<T extends Ability>({
     T Function(List<RawRule> rules)? create,
-  }) => create == null ? PureAbility(rules) as T : create(rules);
+  }) => create == null ? Ability(rules) as T : create(rules);
 
   RuleRef _add(RawRule rule) {
     _rules.add(rule);

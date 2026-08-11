@@ -13,7 +13,7 @@ class Article with CaslSubject {
 }
 
 void main() {
-  PureAbility abilityOf(void Function(AbilityBuilder) define) {
+  Ability abilityOf(void Function(AbilityBuilder) define) {
     final builder = AbilityBuilder();
     define(builder);
     return builder.build();
@@ -23,7 +23,7 @@ void main() {
     test('nothing is permitted by default', () {
       // An ability grants. Silence is a refusal, and it has to be — the
       // alternative is a permission system that fails open.
-      expect(PureAbility(const []).can('read', 'Article'), isFalse);
+      expect(Ability(const []).can('read', 'Article'), isFalse);
     });
 
     test('a rule permits exactly what it names', () {
@@ -124,7 +124,7 @@ void main() {
     });
 
     test('both names are configurable, because they are conventions', () {
-      final ability = PureAbility(
+      final ability = Ability(
         [RawRule.of(action: 'ALL', subject: 'EVERYTHING')],
         anyActionName: 'ALL',
         anySubjectTypeName: 'EVERYTHING',
@@ -153,7 +153,7 @@ void main() {
     test('asking about a type is a different question from an instance', () {
       // "Is there any article I may update?" versus "may I update this one?".
       // A menu item asks the first; the button on a row asks the second.
-      final ability = PureAbility(
+      final ability = Ability(
         [
           RawRule.of(
             action: 'update',
@@ -176,7 +176,7 @@ void main() {
     test('a forbidding rule does not answer for a whole type', () {
       // "You cannot update articles you did not write" must never be read as
       // "you cannot update articles" — that hides the feature from everyone.
-      final ability = PureAbility(
+      final ability = Ability(
         [
           RawRule.of(action: 'update', subject: 'Article'),
           RawRule.of(
@@ -200,7 +200,7 @@ void main() {
       // The failure mode this replaces is the worst kind: a rule that compiles,
       // never matches, and quietly denies.
       expect(
-        () => PureAbility([
+        () => Ability([
           RawRule.of(
             action: 'read',
             subject: 'Article',
@@ -222,7 +222,7 @@ void main() {
       // too. A condition language is a real choice; `*` and `**` mean one
       // thing everywhere, so defaulting it cannot change what a rule means —
       // it only replaces a throw with the answer everyone would have supplied.
-      final ability = PureAbility([
+      final ability = Ability([
         RawRule.of(action: 'read', subject: 'Article', fields: 'title'),
       ]);
 
@@ -232,7 +232,7 @@ void main() {
 
     test('an empty fields list is a mistake, not "no fields"', () {
       expect(
-        () => PureAbility([
+        () => Ability([
           RawRule.of(
             action: 'read',
             subject: 'Article',

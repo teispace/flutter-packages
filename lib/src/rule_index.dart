@@ -7,11 +7,11 @@ import 'package:casl/src/subject.dart';
 
 /// Rules, indexed by subject type and action so a check does not scan them all.
 ///
-/// Split out from `PureAbility` because it is a different job: this decides
+/// Split out from `Ability` because it is a different job: this decides
 /// which rules *could* apply, and the ability decides what that means.
 /// Everything to do with ordering lives here.
 ///
-/// Not usually constructed directly — see `PureAbility`.
+/// Not usually constructed directly — see `Ability`.
 class RuleIndex {
   /// Indexes [rules].
   RuleIndex(

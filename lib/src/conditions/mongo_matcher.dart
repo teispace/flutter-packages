@@ -7,7 +7,7 @@ import 'package:casl/src/matchers.dart';
 import 'package:casl/src/raw_rule.dart';
 
 /// A rule's conditions, parsed once and ready to be asked.
-final class MongoConditionsMatch implements ConditionsMatch {
+final class MongoConditionsMatch implements ParsedConditions {
   /// Parses [conditions].
   MongoConditionsMatch(
     Map<String, Object?> conditions, {
@@ -22,6 +22,7 @@ final class MongoConditionsMatch implements ConditionsMatch {
   /// This is what turns rules into a database query: an application that wants
   /// "select the articles this user may read" translates this rather than
   /// fetching everything and filtering in memory.
+  @override
   final Condition condition;
 
   final ConditionInterpreter _interpreter;
@@ -71,7 +72,7 @@ ConditionsMatcher mongoConditionsMatcher({
 /// The counterpart of CASL.js's function of the same name, and it accepts the
 /// rules that one produces unchanged — which is the whole point: a server
 /// computes the rules once and both halves of the product agree about them.
-PureAbility createMongoAbility(
+Ability createMongoAbility(
   List<RawRule> rules, {
   MongoQueryParser parser = const MongoQueryParser(),
   FieldReader read = readField,
@@ -79,7 +80,7 @@ PureAbility createMongoAbility(
   String anyActionName = 'manage',
   String anySubjectTypeName = 'all',
   List<String> Function(List<String>)? resolveActions,
-}) => PureAbility(
+}) => Ability(
   rules,
   conditionsMatcher: mongoConditionsMatcher(parser: parser, read: read),
   resolveActions: resolveActions,

@@ -110,7 +110,7 @@ final class RawRule {
 
   /// Whether this rule forbids rather than permits.
   ///
-  /// Order decides the outcome, not this flag: see `PureAbility.can`. A
+  /// Order decides the outcome, not this flag: see `Ability.can`. A
   /// permitting rule declared *after* a forbidding one wins.
   final bool inverted;
 

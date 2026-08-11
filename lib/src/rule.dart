@@ -1,3 +1,4 @@
+import 'package:casl/src/conditions/condition.dart';
 import 'package:casl/src/fields/field_pattern.dart';
 import 'package:casl/src/matchers.dart';
 import 'package:casl/src/raw_rule.dart';
@@ -11,7 +12,7 @@ final class Rule {
   /// Compiles [origin].
   ///
   /// [priority] orders it against its siblings. Lower wins, and the ability
-  /// assigns it — see `PureAbility.can` for why the last declared gets zero.
+  /// assigns it — see `Ability.can` for why the last declared gets zero.
   Rule(
     this.origin, {
     required this.priority,
@@ -34,7 +35,7 @@ final class Rule {
         origin,
         'rule',
         'this rule has conditions, but the ability has no conditionsMatcher. '
-            'Use createMongoAbility, or pass one to PureAbility.',
+            'Use createMongoAbility, or pass one to Ability.',
       );
     }
   }
@@ -59,6 +60,30 @@ final class Rule {
 
   /// Why it forbids, if it says.
   String? get reason => origin.reason;
+
+  /// The subject types this rule is about.
+  List<String> get subjects => origin.subjects;
+
+  /// The fields it is limited to, or null for all of them.
+  List<String>? get fields => origin.fields;
+
+  /// Its conditions, unparsed.
+  Map<String, Object?>? get conditions => origin.conditions;
+
+  /// Its conditions *parsed*, or null when it has none.
+  ///
+  /// The counterpart of CASL.js's `rule.ast`, and the seam a query builder
+  /// works through: `rulesToCondition` walks these to turn a grant into a
+  /// database query, so a list screen fetches what the user may see rather
+  /// than fetching everything and filtering it.
+  ///
+  /// Only available when the conditions matcher produces one — the built-in
+  /// Mongo matcher does.
+  Condition? get condition {
+    if (origin.conditions == null) return null;
+    final match = _compiledConditions(origin.conditions!);
+    return match is ParsedConditions ? match.condition : null;
+  }
 
   /// Whether [subject] satisfies this rule's conditions.
   ///

@@ -72,9 +72,9 @@ final class ForbiddenError implements Exception {
 ///
 /// For the places where a refusal is exceptional rather than expected — a use
 /// case invoked from somewhere that should already have checked. Screens ask
-/// [PureAbility.can] and draw accordingly; this is for the layer underneath,
+/// [Ability.can] and draw accordingly; this is for the layer underneath,
 /// where being asked to do something forbidden means a bug or a stale UI.
-extension AbilityGuard on PureAbility {
+extension AbilityGuard on Ability {
   /// Throws a [ForbiddenError] unless [action] is permitted.
   ///
   /// ```dart

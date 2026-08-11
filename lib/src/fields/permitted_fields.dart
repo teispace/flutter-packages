@@ -23,10 +23,10 @@ import 'package:casl/src/fields/field_pattern.dart';
 /// server writes rules about.
 ///
 /// Rules are applied lowest priority first so the last one written wins — the
-/// same precedence as [PureAbility.can], applied per field: a rule that
+/// same precedence as [Ability.can], applied per field: a rule that
 /// permits adds its fields, one that forbids removes them.
 List<String> permittedFieldsOf(
-  PureAbility ability,
+  Ability ability,
   String action,
   Object? subject, {
   required List<String> allFields,
@@ -86,7 +86,7 @@ Set<String> _expand(List<String> patterns, List<String> allFields) {
 /// presented to the user as a fact. Forbidding rules are skipped for the same
 /// reason: they say what is *not* allowed, which is not a default.
 Map<String, Object?> rulesToFields(
-  PureAbility ability,
+  Ability ability,
   String action,
   String subjectType,
 ) {
