@@ -1,0 +1,6 @@
+include: ../../analysis_options.yaml
+
+linter:
+  rules:
+    # Published API. See packages/casl for the same reasoning.
+    public_member_api_docs: true

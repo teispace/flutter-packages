@@ -1,0 +1,33 @@
+name: casl_flutter
+description: >
+  Flutter bindings for casl: an ability in the widget tree, a Can widget, and
+  context.can(...) — so a screen draws what a user may actually do.
+version: 0.1.0
+repository: https://github.com/teispace/flutter-packages
+homepage: https://github.com/teispace/flutter-packages/tree/main/packages/casl_flutter
+issue_tracker: https://github.com/teispace/flutter-packages/issues
+
+topics:
+  - authorization
+  - permissions
+  - security
+  - casl
+  - rbac
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.24.0"
+
+resolution: workspace
+
+dependencies:
+  # The whole of the authorisation logic. This package adds widgets and
+  # nothing else — every question it asks is answered there, so a rule means
+  # the same thing on a server, in a test and on screen.
+  casl: ^0.1.0
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
