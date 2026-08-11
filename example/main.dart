@@ -36,7 +36,7 @@ class ExampleApp extends StatelessWidget {
   const ExampleApp({required this.ability, super.key});
 
   /// Held only so the button below can change the rules at runtime.
-  final PureAbility ability;
+  final Ability ability;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -55,20 +55,17 @@ class ExampleApp extends StatelessWidget {
 
           // Kept and disabled, with the rule's own explanation. Right whenever
           // its absence would prompt a question.
-          Builder(
-            builder: (context) {
-              final article = subject('Article', const {'authorId': 7});
-              final refusal = context.forbidden('delete', article);
-
-              return Tooltip(
-                message: refusal?.message ?? '',
-                child: ListTile(
-                  title: const Text('Delete article'),
-                  enabled: refusal == null,
-                  onTap: refusal == null ? () {} : null,
-                ),
-              );
-            },
+          CanBuilder(
+            'delete',
+            subject('Article', const {'authorId': 7}),
+            builder: (context, can) => Tooltip(
+              message: can.reason ?? '',
+              child: ListTile(
+                title: const Text('Delete article'),
+                enabled: can.allowed,
+                onTap: can.allowed ? () {} : null,
+              ),
+            ),
           ),
 
           // The plain question, for anything a widget cannot express.

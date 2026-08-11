@@ -14,20 +14,20 @@ import 'package:flutter/widgets.dart';
 /// out for the few places it is wrong.
 extension AbilityContext on BuildContext {
   /// The nearest ability, subscribing to changes.
-  PureAbility get ability => AbilityProvider.of(this);
+  Ability get ability => AbilityProvider.of(this);
 
   /// The nearest ability *without* subscribing.
   ///
   /// For a callback, an `initState`, or anywhere a rebuild is impossible:
   /// asking during a tap does not need the widget to redraw when the answer
   /// changes, because by then the tap is over.
-  PureAbility readAbility() => AbilityProvider.of(this, listen: false);
+  Ability readAbility() => AbilityProvider.of(this, listen: false);
 
   /// Whether [action] is permitted on [subject].
   ///
   /// [subject] may be a subject type — `context.can('create', 'Article')` —
   /// or an instance, which is a different and usually more precise question.
-  /// See `PureAbility.can`.
+  /// See `Ability.can`.
   bool can(String action, [Object? subject, String? field]) =>
       ability.can(action, subject, field);
 

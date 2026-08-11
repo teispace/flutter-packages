@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  PureAbility abilityOf(List<RawRule> rules) => createMongoAbility(rules);
+  Ability abilityOf(List<RawRule> rules) => createMongoAbility(rules);
 
-  Widget wrap(PureAbility ability, Widget child) => AbilityProvider(
+  Widget wrap(Ability ability, Widget child) => AbilityProvider(
     ability: ability,
     child: Directionality(textDirection: TextDirection.ltr, child: child),
   );
@@ -112,6 +112,43 @@ void main() {
     });
   });
 
+  group('Can.not', () {
+    testWidgets('inverts the question', (tester) async {
+      // For copy that only makes sense to someone who cannot do the thing —
+      // an upgrade prompt, a read-only badge. Written the other way round it
+      // would put the real content in `otherwise` and read backwards.
+      await tester.pumpWidget(
+        wrap(
+          abilityOf(const []),
+          const Can(
+            'invite',
+            'User',
+            not: true,
+            child: Text('Ask an administrator'),
+          ),
+        ),
+      );
+
+      expect(find.text('Ask an administrator'), findsOneWidget);
+    });
+
+    testWidgets('and hides once the action becomes permitted', (tester) async {
+      final ability = abilityOf(const []);
+      await tester.pumpWidget(
+        wrap(
+          ability,
+          const Can('invite', 'User', not: true, child: Text('upgrade')),
+        ),
+      );
+      expect(find.text('upgrade'), findsOneWidget);
+
+      ability.update([RawRule.of(action: 'invite', subject: 'User')]);
+      await tester.pump();
+
+      expect(find.text('upgrade'), findsNothing);
+    });
+  });
+
   group('CanBuilder', () {
     testWidgets('keeps the control and disables it', (tester) async {
       await tester.pumpWidget(
@@ -120,8 +157,8 @@ void main() {
           CanBuilder(
             'delete',
             'Article',
-            builder: (context, allowed) => ElevatedButton(
-              onPressed: allowed ? () {} : null,
+            builder: (context, can) => ElevatedButton(
+              onPressed: can.allowed ? () {} : null,
               child: const Text('Delete'),
             ),
           ),
@@ -133,6 +170,96 @@ void main() {
         tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
         isNull,
       );
+    });
+  });
+
+  group('what the builder is told', () {
+    testWidgets('the reason, so a disabled control can explain itself', (
+      tester,
+    ) async {
+      late CanResult result;
+
+      await tester.pumpWidget(
+        wrap(
+          abilityOf([
+            RawRule.of(action: 'delete', subject: 'Article'),
+            RawRule.of(
+              action: 'delete',
+              subject: 'Article',
+              inverted: true,
+              reason: 'published articles are kept',
+            ),
+          ]),
+          CanBuilder(
+            'delete',
+            'Article',
+            builder: (context, can) {
+              result = can;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(result.allowed, isFalse);
+      expect(result.reason, 'published articles are kept');
+      expect(result.refusal, isNotNull);
+    });
+
+    testWidgets('and the ability, for a question these widgets do not ask', (
+      tester,
+    ) async {
+      // `permittedFieldsOf` over a form, say — the escape hatch that keeps
+      // this package from having to wrap every function in `casl`.
+      late List<String> editable;
+
+      await tester.pumpWidget(
+        wrap(
+          abilityOf([
+            RawRule.of(
+              action: 'update',
+              subject: 'Article',
+              fields: const ['title'],
+            ),
+          ]),
+          CanBuilder(
+            'update',
+            'Article',
+            builder: (context, can) {
+              editable = permittedFieldsOf(
+                can.ability,
+                'update',
+                'Article',
+                allFields: const ['title', 'body'],
+              );
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(editable, ['title']);
+    });
+
+    testWidgets('nothing to explain when it is allowed', (tester) async {
+      late CanResult result;
+
+      await tester.pumpWidget(
+        wrap(
+          abilityOf([RawRule.of(action: 'read', subject: 'Article')]),
+          CanBuilder(
+            'read',
+            'Article',
+            builder: (context, can) {
+              result = can;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(result.allowed, isTrue);
+      expect(result.reason, isNull);
     });
   });
 
@@ -278,7 +405,7 @@ void main() {
 
     testWidgets('maybeOf answers null instead', (tester) async {
       // For a widget used both inside a signed-in shell and outside one.
-      late PureAbility? ability;
+      late Ability? ability;
 
       await tester.pumpWidget(
         Builder(

@@ -1,3 +1,4 @@
+import 'package:casl/casl.dart';
 import 'package:casl_flutter/src/context_extensions.dart';
 import 'package:flutter/widgets.dart';
 
@@ -32,6 +33,7 @@ class Can extends StatelessWidget {
     required this.child,
     this.field,
     this.otherwise,
+    this.not = false,
     super.key,
   });
 
@@ -50,30 +52,62 @@ class Can extends StatelessWidget {
   /// Shown when not. Nothing at all by default.
   final Widget? otherwise;
 
+  /// Inverts the question, so [child] shows when the action is *forbidden*.
+  ///
+  /// For the copy that only makes sense to someone who cannot do the thing —
+  /// an upgrade prompt, a "read only" badge — where writing it the other way
+  /// round would put the real content in [otherwise] and read backwards.
+  final bool not;
+
   @override
-  Widget build(BuildContext context) => context.can(action, subject, field)
-      ? child
-      : otherwise ?? const SizedBox.shrink();
+  Widget build(BuildContext context) {
+    final allowed = context.ability.can(action, subject, field);
+
+    return allowed != not ? child : otherwise ?? const SizedBox.shrink();
+  }
+}
+
+/// The answer, and why, handed to a [CanBuilder].
+@immutable
+final class CanResult {
+  /// Creates the answer.
+  const CanResult({required this.allowed, required this.ability, this.refusal});
+
+  /// Whether the action is permitted.
+  final bool allowed;
+
+  /// Why not, when it is not.
+  ///
+  /// Carries the forbidding rule's own words where it gave any. Null whenever
+  /// [allowed] is true.
+  final ForbiddenError? refusal;
+
+  /// The ability that answered, for a question this widget does not express.
+  final Ability ability;
+
+  /// The message to show, or null when there is nothing to explain.
+  String? get reason => refusal?.message;
 }
 
 /// Builds either way, told whether the action is permitted.
 ///
-/// The usually-better alternative to hiding a control:
+/// The usually-better alternative to hiding a control. The builder is handed
+/// the reason as well as the answer, which is the difference between a
+/// greyed-out button and one that says why:
 ///
 /// ```dart
 /// CanBuilder(
 ///   'delete',
 ///   article,
-///   builder: (context, allowed) => FilledButton(
-///     onPressed: allowed ? () => delete(article) : null,
-///     child: const Text('Delete'),
+///   builder: (context, can) => Tooltip(
+///     message: can.reason ?? '',
+///     child: FilledButton(
+///       onPressed: can.allowed ? () => delete(article) : null,
+///       child: const Text('Delete'),
+///     ),
 ///   ),
 /// )
 /// ```
-///
-/// Reach for `context.forbidden(...)` inside the builder when the *reason*
-/// would help — it carries whatever the forbidding rule said, which is the
-/// difference between a greyed-out button and one that says why.
 class CanBuilder extends StatelessWidget {
   /// Builds with the answer to "may [action] be done to [subject]".
   const CanBuilder(
@@ -94,14 +128,20 @@ class CanBuilder extends StatelessWidget {
   final String? field;
 
   /// Called with the answer, again whenever the rules change.
-  ///
-  /// Positional, matching Flutter's own builders — `ValueWidgetBuilder` and
-  /// `AsyncWidgetBuilder` both pass their payload the same way, and a named
-  /// parameter here would read worse at every call site.
-  // ignore: avoid_positional_boolean_parameters
-  final Widget Function(BuildContext context, bool allowed) builder;
+  final Widget Function(BuildContext context, CanResult can) builder;
 
   @override
-  Widget build(BuildContext context) =>
-      builder(context, context.can(action, subject, field));
+  Widget build(BuildContext context) {
+    final ability = context.ability;
+    final refusal = ability.errorUnlessCan(action, subject, field);
+
+    return builder(
+      context,
+      CanResult(
+        allowed: refusal == null,
+        refusal: refusal,
+        ability: ability,
+      ),
+    );
+  }
 }

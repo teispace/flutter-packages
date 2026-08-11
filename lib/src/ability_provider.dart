@@ -30,7 +30,7 @@ class AbilityProvider extends StatefulWidget {
   });
 
   /// The ability to publish.
-  final PureAbility ability;
+  final Ability ability;
 
   /// The subtree that may ask about it.
   final Widget child;
@@ -44,7 +44,7 @@ class AbilityProvider extends StatefulWidget {
   ///
   /// Set [listen] to false to read it without subscribing, in a callback or an
   /// `initState` where a rebuild is neither wanted nor possible.
-  static PureAbility of(BuildContext context, {bool listen = true}) {
+  static Ability of(BuildContext context, {bool listen = true}) {
     final ability = maybeOf(context, listen: listen);
     if (ability != null) return ability;
 
@@ -66,7 +66,7 @@ class AbilityProvider extends StatefulWidget {
   ///
   /// For code that genuinely works either way: a shared widget used both
   /// inside an authenticated shell and on a sign-in screen, say.
-  static PureAbility? maybeOf(BuildContext context, {bool listen = true}) {
+  static Ability? maybeOf(BuildContext context, {bool listen = true}) {
     final scope = listen
         ? context.dependOnInheritedWidgetOfExactType<AbilityScope>()
         : context.getInheritedWidgetOfExactType<AbilityScope>();
@@ -138,7 +138,7 @@ class AbilityScope extends InheritedWidget {
   });
 
   /// What the subtree may ask.
-  final PureAbility ability;
+  final Ability ability;
 
   /// Changes whenever the rules do.
   final int revision;
