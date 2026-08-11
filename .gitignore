@@ -1,0 +1,25 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# A library must resolve against whatever its consumer already has, so its
+# lockfile is noise that goes stale and conflicts. Applications commit theirs;
+# packages do not, and everything here is a package.
+pubspec.lock
+
+# Generated code, if a package ever adds any.
+*.g.dart
+*.freezed.dart
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Coverage
+coverage/
+lcov.info

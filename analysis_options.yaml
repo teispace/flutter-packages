@@ -1,0 +1,15 @@
+# Shared by every package. Each one includes this file rather than repeating a
+# lint list, so "what counts as correct here" has exactly one definition.
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # These are libraries other people depend on, so the public API is the
+    # product. Every exported member documented, and no undocumented surprise
+    # in a release.
+    public_member_api_docs: true

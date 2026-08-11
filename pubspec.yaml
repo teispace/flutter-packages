@@ -1,0 +1,66 @@
+name: _flutter_packages_workspace
+description: Workspace root. Not published; it exists to hold the packages.
+publish_to: none
+
+# The root is never published, so its version is meaningless. Each package
+# carries its own — see packages/*/pubspec.yaml.
+version: 0.0.0
+
+environment:
+  sdk: ^3.6.0
+
+# Pub workspaces, not path dependencies. One resolution, one lockfile, one
+# `.dart_tool` — so `casl_flutter` develops against the `casl` in this
+# checkout rather than the one on pub.dev, with nothing to remember to change
+# before publishing.
+#
+# Every member declares `resolution: workspace` in its own pubspec. That field
+# is harmless in a published package: pub ignores it for a dependency, so a
+# consumer resolves normally.
+workspace:
+  - packages/casl
+  - packages/casl_flutter
+  - packages/flutter_onboarding
+
+dev_dependencies:
+  melos: ^8.2.2
+
+# Melos 8 has no melos.yaml. Configuration lives here, under `melos:`, and the
+# workspace members above are what it operates on.
+melos:
+  scripts:
+    analyze:
+      description: Static analysis across every package. Infos are failures.
+      run: dart analyze . --fatal-infos --fatal-warnings
+
+    format:
+      description: Format every package, and fail if anything changed.
+      run: dart format --set-exit-if-changed .
+
+    test:
+      description: |
+        Every package's tests. Split by kind because a pure Dart package must
+        not need Flutter to test — that is most of why `casl` is separate from
+        `casl_flutter`, and a suite that only ever ran under `flutter test`
+        would let that guarantee rot silently.
+      run: |
+        set -e
+        melos exec --depends-on=flutter_test -- flutter test
+        melos exec --no-depends-on=flutter_test --dir-exists=test -- dart test
+
+    publish:check:
+      description: |
+        Dry-run every package against pub.dev. Catches a missing CHANGELOG
+        entry, a file that would ship by accident and a dependency that is not
+        publishable — all of which are otherwise found at `pub publish` time,
+        after the version has been decided.
+      run: melos exec -- dart pub publish --dry-run
+
+    ci:
+      description: The full pipeline, identical to what CI runs.
+      run: |
+        set -e
+        melos run format
+        melos run analyze
+        melos run test
+        melos run publish:check
