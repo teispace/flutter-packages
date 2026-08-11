@@ -217,13 +217,17 @@ void main() {
       );
     });
 
-    test('the same for fields', () {
-      expect(
-        () => PureAbility([
-          RawRule.of(action: 'read', subject: 'Article', fields: 'title'),
-        ]),
-        throwsA(isA<ArgumentError>()),
-      );
+    test('but field rules work out of the box', () {
+      // A deliberate deviation from CASL.js, which requires a field matcher
+      // too. A condition language is a real choice; `*` and `**` mean one
+      // thing everywhere, so defaulting it cannot change what a rule means —
+      // it only replaces a throw with the answer everyone would have supplied.
+      final ability = PureAbility([
+        RawRule.of(action: 'read', subject: 'Article', fields: 'title'),
+      ]);
+
+      expect(ability.can('read', 'Article', 'title'), isTrue);
+      expect(ability.can('read', 'Article', 'body'), isFalse);
     });
 
     test('an empty fields list is a mistake, not "no fields"', () {

@@ -1,4 +1,5 @@
 import 'package:casl/src/alias.dart';
+import 'package:casl/src/fields/field_pattern.dart';
 import 'package:casl/src/matchers.dart';
 import 'package:casl/src/raw_rule.dart';
 import 'package:casl/src/rule.dart';
@@ -19,7 +20,12 @@ class RuleIndex {
     // `conditionsMatcher:`, because Dart exposes a private field under its
     // public name.
     this._conditionsMatcher,
-    this._fieldsMatcher,
+    // Defaulted, unlike the conditions matcher. CASL.js requires this one too,
+    // and the deviation is deliberate: a condition language is a real choice,
+    // whereas `*` and `**` mean one thing everywhere. Defaulting it cannot
+    // change what any rule means — it only replaces a throw with the answer
+    // everyone was going to supply anyway.
+    this._fieldsMatcher = defaultFieldsMatcher,
     this._resolveActions,
     DetectSubjectType? detectSubjectType,
     this.anyActionName = anyAction,
@@ -36,7 +42,7 @@ class RuleIndex {
   final String anySubjectTypeName;
 
   final ConditionsMatcher? _conditionsMatcher;
-  final FieldsMatcher? _fieldsMatcher;
+  final FieldsMatcher _fieldsMatcher;
   final ResolveActions? _resolveActions;
   final DetectSubjectType _detectSubjectType;
 

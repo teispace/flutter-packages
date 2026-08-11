@@ -35,6 +35,8 @@ export 'src/conditions/field_reader.dart';
 export 'src/conditions/interpreter.dart';
 export 'src/conditions/mongo_matcher.dart';
 export 'src/conditions/mongo_parser.dart';
+export 'src/fields/field_pattern.dart';
+export 'src/fields/permitted_fields.dart';
 export 'src/matchers.dart';
 export 'src/raw_rule.dart';
 export 'src/rule.dart';

@@ -1,3 +1,4 @@
+import 'package:casl/src/fields/field_pattern.dart';
 import 'package:casl/src/matchers.dart';
 import 'package:casl/src/raw_rule.dart';
 import 'package:casl/src/subject.dart';
@@ -15,10 +16,9 @@ final class Rule {
     this.origin, {
     required this.priority,
     ConditionsMatcher? conditionsMatcher,
-    FieldsMatcher? fieldsMatcher,
+    this._fieldsMatcher = defaultFieldsMatcher,
     List<String> Function(List<String>)? resolveActions,
   }) : _conditionsMatcher = conditionsMatcher,
-       _fieldsMatcher = fieldsMatcher,
        actions = resolveActions == null
            ? origin.actions
            : resolveActions(origin.actions) {
@@ -27,13 +27,6 @@ final class Rule {
         origin,
         'rule',
         'the fields list cannot be empty — omit it to mean "every field"',
-      );
-    }
-    if (origin.fields != null && fieldsMatcher == null) {
-      throw ArgumentError.value(
-        origin,
-        'rule',
-        'this rule restricts fields, but the ability has no fieldsMatcher',
       );
     }
     if (origin.conditions != null && conditionsMatcher == null) {
@@ -56,7 +49,7 @@ final class Rule {
   final int priority;
 
   final ConditionsMatcher? _conditionsMatcher;
-  final FieldsMatcher? _fieldsMatcher;
+  final FieldsMatcher _fieldsMatcher;
 
   ConditionsMatch? _conditions;
   bool Function(String)? _fields;
@@ -102,7 +95,7 @@ final class Rule {
     if (fields == null) return true;
     if (field == null) return !inverted;
 
-    return (_fields ??= _fieldsMatcher!(fields))(field);
+    return (_fields ??= _fieldsMatcher(fields))(field);
   }
 
   ConditionsMatch _compiledConditions(Map<String, Object?> conditions) =>
