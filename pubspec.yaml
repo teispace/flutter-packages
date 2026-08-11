@@ -3,8 +3,9 @@ description: >
   Flutter bindings for casl: an ability in the widget tree, a Can widget, and
   context.can(...) — so a screen draws what a user may actually do.
 version: 0.1.0
-repository: https://github.com/teispace/casl
-issue_tracker: https://github.com/teispace/casl/issues
+repository: https://github.com/teispace/flutter-packages
+homepage: https://github.com/teispace/flutter-packages/tree/main/packages/casl_flutter
+issue_tracker: https://github.com/teispace/flutter-packages/issues
 
 topics:
   - authorization
