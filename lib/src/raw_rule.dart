@@ -1,3 +1,4 @@
+import 'package:casl/src/deep_equals.dart';
 import 'package:casl/src/subject.dart';
 import 'package:meta/meta.dart';
 
@@ -136,7 +137,7 @@ final class RawRule {
       _sameList(other.actions, actions) &&
       _sameList(other.subjects, subjects) &&
       _sameList(other.fields, fields) &&
-      _sameConditions(other.conditions, conditions) &&
+      deepEquals(other.conditions, conditions) &&
       other.inverted == inverted &&
       other.reason == reason;
 
@@ -145,7 +146,7 @@ final class RawRule {
     Object.hashAll(actions),
     Object.hashAll(subjects),
     fields == null ? null : Object.hashAll(fields!),
-    conditions == null ? null : Object.hashAll(conditions!.keys),
+    deepHash(conditions),
     inverted,
     reason,
   );
@@ -163,19 +164,6 @@ final class RawRule {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
-
-  static bool _sameConditions(
-    Map<String, Object?>? a,
-    Map<String, Object?>? b,
-  ) {
-    if (a == null || b == null) return a == b;
-    if (a.length != b.length) return false;
-    for (final entry in a.entries) {
-      if (!b.containsKey(entry.key)) return false;
-      if (b[entry.key] != entry.value) return false;
     }
     return true;
   }

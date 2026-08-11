@@ -1,5 +1,6 @@
 import 'package:casl/src/conditions/condition.dart';
 import 'package:casl/src/conditions/field_reader.dart';
+import 'package:casl/src/deep_equals.dart';
 
 /// Orders two values the way the condition operators need them ordered.
 ///
@@ -10,7 +11,7 @@ import 'package:casl/src/conditions/field_reader.dart';
 /// half is never the deciding answer for them.
 int caslCompare(Object? a, Object? b) {
   if (a == null && b == null) return 0;
-  if (_equal(a, b)) return 0;
+  if (deepEquals(a, b)) return 0;
   if (a is num && b is num) return a.compareTo(b);
   if (a is String && b is String) return a.compareTo(b);
   if (a is DateTime && b is DateTime) return a.compareTo(b);
@@ -18,28 +19,6 @@ int caslCompare(Object? a, Object? b) {
     return a.compareTo(b);
   }
   return -1;
-}
-
-bool _equal(Object? a, Object? b) {
-  if (identical(a, b) || a == b) return true;
-  // 1 and 1.0 are the same number to a JSON document, and a condition written
-  // as an integer must match a value decoded as a double.
-  if (a is num && b is num) return a == b;
-  if (a is List && b is List) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (!_equal(a[i], b[i])) return false;
-    }
-    return true;
-  }
-  if (a is Map && b is Map) {
-    if (a.length != b.length) return false;
-    for (final key in a.keys) {
-      if (!b.containsKey(key) || !_equal(a[key], b[key])) return false;
-    }
-    return true;
-  }
-  return false;
 }
 
 /// Evaluates a parsed [Condition] against a subject.
@@ -111,14 +90,14 @@ final class ConditionInterpreter {
     }
 
     if (value is List) {
-      return _equal(value, node.value) || _includes(value, node.value);
+      return deepEquals(value, node.value) || _includes(value, node.value);
     }
 
     if (node.value is RegExp) {
       return value is String && (node.value! as RegExp).hasMatch(value);
     }
 
-    return _equal(value, node.value);
+    return deepEquals(value, node.value);
   }
 
   bool _exists(FieldCondition node, Object? subject) {
@@ -150,5 +129,5 @@ final class ConditionInterpreter {
       value is List ? value.any(test) : test(value);
 
   static bool _includes(Object? items, Object? value) =>
-      items is List && items.any((item) => _equal(item, value));
+      items is List && items.any((item) => deepEquals(item, value));
 }
