@@ -1,0 +1,8 @@
+include: ../../analysis_options.yaml
+
+linter:
+  rules:
+    # This is published API. Every public member is a promise to a stranger,
+    # and a promise with no documentation is one they have to read the source
+    # to understand.
+    public_member_api_docs: true

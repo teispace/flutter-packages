@@ -1,0 +1,36 @@
+name: casl
+description: >
+  Isomorphic authorisation for Dart. Define what a user can do with rules, ask
+  `ability.can(...)`, and share the exact same rules with a CASL.js backend.
+version: 0.1.0
+repository: https://github.com/teispace/flutter-packages
+homepage: https://github.com/teispace/flutter-packages/tree/main/packages/casl
+issue_tracker: https://github.com/teispace/flutter-packages/issues
+
+topics:
+  - authorization
+  - permissions
+  - security
+  - casl
+  - rbac
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+# `meta` and nothing else, deliberately.
+#
+# This package is meant to run anywhere Dart does — a Flutter app, a server, a
+# build script — and every dependency is a reason someone cannot adopt it.
+# `meta` is first-party, has no transitive dependencies of its own, and is
+# already resolved in every project that uses Flutter or the standard lints. It
+# earns its place by making the value types here provably immutable rather than
+# immutable by convention.
+#
+# Flutter widgets live in `casl_flutter`, which depends on this.
+dependencies:
+  meta: ^1.18.0
+
+dev_dependencies:
+  test: ^1.31.0
