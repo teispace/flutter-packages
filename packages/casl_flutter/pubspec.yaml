@@ -31,3 +31,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Lints come from the workspace's analysis_options.yaml, which this package
+  # includes.
+  very_good_analysis: ^9.0.0

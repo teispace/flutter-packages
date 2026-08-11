@@ -20,11 +20,11 @@ A new flutter package that assists developers to create good looking onboarding 
 
 ## Usage
 
-[Example](https://github.com/teispace/flutter_onboarding/blob/main/example/example.dart)
+[Example](https://github.com/teispace/flutter-packages/blob/main/packages/flutter_onboarding/example/example.dart)
 
 To use this package :
 
-- add the dependency to your [pubspec.yaml](https://github.com/teispace/flutter_onboarding/blob/main/pubspec.yaml) file.
+- add the dependency to your [pubspec.yaml](https://github.com/teispace/flutter-packages/blob/main/packages/flutter_onboarding/pubspec.yaml) file.
 
 ```yaml
 dependencies:
@@ -100,7 +100,7 @@ class ExampleOnBoarding extends StatelessWidget {
 dependencies:
   flutter:
     sdk: flutter
-  flutter_onboarding: ^1.0.0
+  flutter_onboarding: ^1.0.6
 ```
 
 ## Update pages models
@@ -187,7 +187,7 @@ I welcome and encourage all pull requests. It usually will take me within 24-48 
 2.  If its a feature, bugfix, or anything please only change code to what you specify.
 3.  Please keep PR titles easy to read and descriptive of changes, this will make them easier to merge :)
 4.  Pull requests _must_ be made against `develop` branch. Any other branch (unless specified by the maintainers) will get rejected.
-5.  Check for existing [issues](https://github.com/teispace/flutter_onboarding/issues) first, before filing an issue.
+5.  Check for existing [issues](https://github.com/teispace/flutter-packages/issues) first, before filing an issue.
 6.  Make sure you follow the set standard as all other projects in this repo do
 7.  Have fun!
 
@@ -226,6 +226,6 @@ For help getting started with Flutter, view our online [documentation](https://f
 For help on editing package code, view the [documentation](https://flutter.io/developing-packages/).
 
 #### Below are the people who has contributed to the Flutter Onboarding. We hope we have your picture here soon.
-<a href="https://github.com/teispace/flutter_onboarding/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=teispace/flutter_onboarding" />
+<a href="https://github.com/teispace/flutter-packages/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=teispace/flutter-packages" />
 </a>

@@ -4,7 +4,7 @@ import 'package:flutter_onboarding/flutter_onboarding.dart';
 import 'home.dart';
 
 class ExampleOnBoarding extends StatelessWidget {
-  const ExampleOnBoarding({Key? key}) : super(key: key);
+  const ExampleOnBoarding({super.key});
 
   /// This is the list of pages that will be shown in the on boarding screen.
   List<IntroModel> pages(BuildContext context) {
@@ -18,7 +18,8 @@ class ExampleOnBoarding extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         description: Text(
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua',
+          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do '
+          'eiusmod tempor incididunt ut labore et dolore magna aliqua',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleMedium,
         ),
@@ -43,7 +44,7 @@ class ExampleOnBoarding extends StatelessWidget {
           /// When done button is press we navigate to the home page.
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
+            MaterialPageRoute<void>(
               builder: (context) => const HomePage(),
             ),
           );

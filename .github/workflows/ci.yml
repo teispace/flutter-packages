@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch supersedes the previous run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.44.8"
+  MELOS_VERSION: "8.2.2"
+
+jobs:
+  # Every job calls the same melos script a developer runs locally, so a green
+  # `melos run ci` on a laptop means a green pipeline. Splitting into jobs buys
+  # parallelism and says which gate failed — it does not fork the logic.
+  #
+  # Flutter rather than plain Dart even for the pure-Dart packages: the SDK
+  # bundles both, and one toolchain is one thing to keep in step.
+  analyze:
+    name: Format and analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Activate melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Format
+        run: melos run format
+
+      - name: Analyze
+        run: melos run analyze
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Activate melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Test
+        run: melos run test
+
+  # Catches what only `pub publish` would otherwise catch: a missing CHANGELOG
+  # entry for the current version, a file that would ship by accident, a
+  # dependency that cannot be published. Finding those at release time means
+  # finding them after the version has been decided.
+  publishable:
+    name: Every package is publishable
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Activate melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Dry-run
+        run: melos run publish:check
