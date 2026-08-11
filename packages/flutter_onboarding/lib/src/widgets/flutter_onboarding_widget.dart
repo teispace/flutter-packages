@@ -124,60 +124,64 @@ class FlutterOnBoarding extends StatefulWidget {
   State<FlutterOnBoarding> createState() => _FlutterOnBoardingState();
 }
 
-class _FlutterOnBoardingState extends State<FlutterOnBoarding> {
-  /// The current page displayed in the onboarding flow. Defaults to 0.
-  int currentPage = 0;
+/// Where the "already seen" flag is stored.
+const _seenKey = 'isDone';
 
+class _FlutterOnBoardingState extends State<FlutterOnBoarding> {
   /// The [PageController] used to control the scrolling of the onboarding flow.
   late PageController pageController;
+
+  /// Whether [pageController] is ours to dispose.
+  ///
+  /// A controller passed in belongs to the caller: disposing theirs leaves
+  /// them holding one that throws on the next use, and the error surfaces
+  /// far from here.
+  bool _ownsController = false;
 
   /// The [SharedPreferences] instance to read and write the flag with.
   ///
   /// Null lets the widget obtain its own.
   late SharedPreferences prefs;
 
-  /// Whether the onboarding flow is loading. Defaults to true.
-  bool isLoading = true;
+  /// Whether the stored flag is still being read.
+  ///
+  /// False from the start when there is nothing to read, so a flow that
+  /// manages its own storage never flashes a spinner.
+  late bool isLoading = widget.shouldUseDefaultStorage;
 
   @override
   void initState() {
     super.initState();
+    _ownsController = widget.pageController == null;
     pageController = widget.pageController ?? PageController();
 
-    if (widget.shouldUseDefaultStorage) {
-      _initPrefs();
-    } else {
-      setState(() {
-        isLoading = false;
-      });
-    }
+    if (widget.shouldUseDefaultStorage) unawaited(_initPrefs());
   }
 
   Future<void> _initPrefs() async {
     prefs = await SharedPreferences.getInstance();
-    final isDone = prefs.getBool('isDone');
+    // Navigating away while this resolves is ordinary — a deep link, a
+    // sign-out. Calling back into a disposed State throws.
+    if (!mounted) return;
 
-    if (isDone != null && isDone) {
+    if (prefs.getBool(_seenKey) ?? false) {
       widget.onDone.call();
       return;
     }
 
-    setState(() {
-      isLoading = false;
-    });
+    setState(() => isLoading = false);
   }
 
   /// Records that the intro has been seen, so it is not shown again.
   Future<void> _setOnboardingDone() async {
     if (widget.shouldUseDefaultStorage) {
-      await prefs.setBool('isDone', true);
+      await prefs.setBool(_seenKey, true);
     }
   }
 
-  //dispose
   @override
   void dispose() {
-    pageController.dispose();
+    if (_ownsController) pageController.dispose();
     super.dispose();
   }
 
@@ -195,14 +199,7 @@ class _FlutterOnBoardingState extends State<FlutterOnBoarding> {
                     itemCount: widget.pages.length,
                     controller: pageController,
                     physics: widget.physics,
-                    onPageChanged: (value) {
-                      setState(() {
-                        currentPage = value;
-                      });
-                    },
-                    scrollDirection: widget.scrollDirection == Axis.vertical
-                        ? Axis.vertical
-                        : Axis.horizontal,
+                    scrollDirection: widget.scrollDirection,
                     itemBuilder: (context, index) {
                       final isLastPage = index == widget.pages.length - 1;
                       final introModel = widget.pages[index];
@@ -219,7 +216,10 @@ class _FlutterOnBoardingState extends State<FlutterOnBoarding> {
                           // button
                           widget.navigationControl ??
                               _buildNavigationSection(
-                                  isLastPage, context, index),
+                                isLastPage,
+                                context,
+                                index,
+                              ),
                           const SizedBox(height: 32),
                         ],
                       );
@@ -291,10 +291,15 @@ class _FlutterOnBoardingState extends State<FlutterOnBoarding> {
         if (!isLastPage)
           TextButton(
             onPressed: () {
-              pageController.animateToPage(
-                widget.pages.length - 1,
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeIn,
+              // Fire and forget, like the next button: awaiting the animation
+              // would hold the callback for half a second and change how the
+              // control feels.
+              unawaited(
+                pageController.animateToPage(
+                  widget.pages.length - 1,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeIn,
+                ),
               );
             },
             child: Text(
@@ -345,31 +350,50 @@ class _FlutterOnBoardingState extends State<FlutterOnBoarding> {
   Widget _buildIndicators() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: DotsIndicator(
-        dotsCount: widget.pages.length,
-        position: currentPage,
-        axis: widget.scrollDirection,
-        decorator: DotsDecorator(
-            activeShape: widget.activeIndicatorShape ??
-                (const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(
-                    Radius.circular(100),
-                  ),
-                )),
-            activeSize: widget.activeIndicatorSize ??
-                (widget.scrollDirection == Axis.vertical
-                    ? const Size(9, 24)
-                    : const Size(24, 9)),
-            shape: widget.inactiveIndicatorShape ??
-                (const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(
-                    Radius.circular(100),
-                  ),
-                )),
-            size: widget.inactiveIndicatorSize ?? const Size(9, 9),
-            color: widget.indicatorInactiveColor ?? Colors.grey,
-            activeColor:
-                widget.indicatorActiveColor ?? Theme.of(context).primaryColor),
+      child: ListenableBuilder(
+        listenable: pageController,
+        builder: (context, _) => _dots(),
+      ),
+    );
+  }
+
+  /// The current page as a fraction, so the dots can move with a drag.
+  ///
+  /// `page` is null until the controller has been attached and laid out,
+  /// and reading it before then throws rather than returning null.
+  double get _position {
+    if (!pageController.hasClients) {
+      return pageController.initialPage.toDouble();
+    }
+    return pageController.page ?? pageController.initialPage.toDouble();
+  }
+
+  Widget _dots() {
+    return DotsIndicator(
+      dotsCount: widget.pages.length,
+      position: _position,
+      axis: widget.scrollDirection,
+      decorator: DotsDecorator(
+        activeShape: widget.activeIndicatorShape ??
+            (const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(
+                Radius.circular(100),
+              ),
+            )),
+        activeSize: widget.activeIndicatorSize ??
+            (widget.scrollDirection == Axis.vertical
+                ? const Size(9, 24)
+                : const Size(24, 9)),
+        shape: widget.inactiveIndicatorShape ??
+            (const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(
+                Radius.circular(100),
+              ),
+            )),
+        size: widget.inactiveIndicatorSize ?? const Size(9, 9),
+        color: widget.indicatorInactiveColor ?? Colors.grey,
+        activeColor:
+            widget.indicatorActiveColor ?? Theme.of(context).primaryColor,
       ),
     );
   }

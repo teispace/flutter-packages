@@ -66,19 +66,38 @@
 
 - Documentation Updated and Bug Fixed
 
-## Unreleased
+## 2.0.0
 
-- **Breaking:** removed `lib/widgets/flutter_onboarding.dart`. It was an
-  older duplicate of the exported widget — never exported from the barrel and
-  never imported by anything, so importing it gave you a second copy of the
-  same class. Anyone reaching past the barrel for it should import
-  `package:flutter_onboarding/flutter_onboarding.dart` instead.
-- Fixed three analysis errors caused by inferred `dynamic` return types on the
-  widget's builders, which made them unassignable to `List<Widget>` under a
-  strict analysis.
-- Added the package's first tests, covering the one-time behaviour and the
-  storage opt-out.
-- Documented every public member, and corrected the docs for the skip button:
-  it jumps to the last page rather than leaving the flow.
-- Moved into the `teispace/flutter-packages` monorepo. SDK floor raised to
-  3.6 to join its pub workspace.
+Major because three things change for callers, all of them small.
+
+**Breaking**
+
+- `dots_indicator` moves to 4.x, whose `position` is a `double`. Only matters
+  if you pass your own `indicator`.
+- The minimum Dart SDK is 3.6.
+- Removed `lib/widgets/flutter_onboarding.dart`, an older duplicate of the
+  exported widget: never exported from the barrel and never imported, so
+  importing it gave you a second copy of the same class. Use
+  `package:flutter_onboarding/flutter_onboarding.dart`.
+
+**Fixed**
+
+- **A `PageController` you pass in is no longer disposed by this widget.** It
+  belongs to you; disposing it left you holding one that threw on next use,
+  and the error surfaced far from here.
+- The stored flag is no longer read into a widget that has been disposed
+  meanwhile — navigating away during the read threw.
+- Three analysis errors from builders whose inferred `dynamic` return type
+  could not be assigned to `List<Widget>`.
+
+**Changed**
+
+- The dots now follow a drag instead of jumping when it ends, and moving them
+  no longer rebuilds every page. The indicator was the only thing reading the
+  current page, so it now listens to the controller itself.
+- No spinner at all when `shouldUseDefaultStorage` is false; there is nothing
+  to wait for.
+- The package's first tests, seven of them.
+- Every public member documented — including a correction: **skip jumps to the
+  last page rather than leaving the flow**, so `onDone` has exactly one caller.
+- Moved into the `teispace/flutter-packages` monorepo.

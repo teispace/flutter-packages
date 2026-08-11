@@ -2,7 +2,7 @@ name: flutter_onboarding
 description: >
   A one-time animated onboarding flow for Flutter: pages, a dots indicator and
   a "seen it" flag persisted for you, so the intro shows once and never again.
-version: 1.0.6
+version: 2.0.0
 repository: https://github.com/teispace/flutter-packages
 homepage: https://github.com/teispace/flutter-packages/tree/main/packages/flutter_onboarding
 issue_tracker: https://github.com/teispace/flutter-packages/issues
@@ -24,7 +24,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  dots_indicator: ^3.0.0
+  dots_indicator: ^4.0.1
   flutter:
     sdk: flutter
   flutter_animate: ^4.2.0+1
@@ -36,7 +36,7 @@ dev_dependencies:
   # Lints come from the workspace's analysis_options.yaml, which every package
   # here includes. `flutter_lints` is deliberately absent: two lint baselines
   # in one repo is two definitions of correct.
-  very_good_analysis: ^9.0.0
+  very_good_analysis: ^10.3.0
 
 flutter:
   assets:

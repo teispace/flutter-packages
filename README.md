@@ -8,6 +8,9 @@ The Dart and Flutter packages we publish, in one repository.
 | [`casl_flutter`](packages/casl_flutter) | [![pub](https://img.shields.io/pub/v/casl_flutter.svg)](https://pub.dev/packages/casl_flutter) | Flutter bindings for `casl`: an ability in the widget tree, a `Can` widget, and `context.can(...)`. |
 | [`flutter_onboarding`](packages/flutter_onboarding) | [![pub](https://img.shields.io/pub/v/flutter_onboarding.svg)](https://pub.dev/packages/flutter_onboarding) | A one-time animated onboarding flow: pages, a dots indicator, and a "seen it" flag persisted for you. |
 
+> `flutter_onboarding` 2.0.0 is staged in this repository and not yet
+> published — see its CHANGELOG for what changes for callers.
+
 Each package is published on its own and versioned on its own. They share a
 repository, not a release train.
 
@@ -57,15 +60,6 @@ normally. It has been verified rather than assumed.
   already has. Applications commit `pubspec.lock`; nothing here is one.
 - **Commits follow [Conventional Commits](https://www.conventionalcommits.org),**
   scoped to the package they touch — `feat(casl): …`.
-
-### One exception, on purpose
-
-`flutter_onboarding` predates the workspace by two years and arrived with a
-much older lint set. It now passes the shared configuration in full, but its
-history in this repository starts at the import commit — see its CHANGELOG for
-what changed on the way in.
-
----
 
 ## Releasing
 

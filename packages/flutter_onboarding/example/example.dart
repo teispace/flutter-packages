@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_onboarding/flutter_onboarding.dart';
@@ -42,10 +44,12 @@ class ExampleOnBoarding extends StatelessWidget {
         pages: pages(context),
         onDone: () {
           /// When done button is press we navigate to the home page.
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute<void>(
-              builder: (context) => const HomePage(),
+          unawaited(
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) => const HomePage(),
+              ),
             ),
           );
         },

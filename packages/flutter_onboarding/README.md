@@ -100,7 +100,7 @@ class ExampleOnBoarding extends StatelessWidget {
 dependencies:
   flutter:
     sdk: flutter
-  flutter_onboarding: ^1.0.6
+  flutter_onboarding: ^2.0.0
 ```
 
 ## Update pages models

@@ -33,4 +33,4 @@ dev_dependencies:
     sdk: flutter
   # Lints come from the workspace's analysis_options.yaml, which this package
   # includes.
-  very_good_analysis: ^9.0.0
+  very_good_analysis: ^10.3.0

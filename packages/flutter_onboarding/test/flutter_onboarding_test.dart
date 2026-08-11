@@ -106,6 +106,33 @@ void main() {
     expect(prefs.getBool('isDone'), isTrue);
   });
 
+  testWidgets('leaves a caller-supplied controller alone', (tester) async {
+    // Ownership: a controller passed in belongs to the caller. Disposing it
+    // here left them holding one that throws on next use, and the error
+    // surfaced somewhere else entirely.
+    final controller = PageController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FlutterOnBoarding(
+          pages: pages,
+          onDone: () {},
+          pageController: controller,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Tear the widget down; the controller must survive it.
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    // A disposed ChangeNotifier throws when listened to. This is the assertion
+    // — addTearDown disposing it a second time would also throw if we had.
+    expect(() => controller.addListener(() {}), returnsNormally);
+  });
+
   testWidgets('records nothing when the app owns that decision', (
     tester,
   ) async {
