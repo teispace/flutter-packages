@@ -1,0 +1,12 @@
+{
+  "name": "casl-parity-harness",
+  "private": true,
+  "type": "module",
+  "description": "Generates the golden fixtures that pin `casl` to @casl/ability. Not published.",
+  "scripts": {
+    "generate": "node generate.mjs"
+  },
+  "dependencies": {
+    "@casl/ability": "7.0.1"
+  }
+}
