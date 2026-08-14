@@ -24,6 +24,7 @@ library;
 
 export 'package:casl/casl.dart';
 
+export 'src/ability_notifier.dart';
 export 'src/ability_provider.dart';
 export 'src/can.dart';
 export 'src/context_extensions.dart';

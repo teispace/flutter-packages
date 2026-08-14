@@ -25,9 +25,9 @@ import 'package:casl/src/fields/field_pattern.dart';
 /// Rules are applied lowest priority first so the last one written wins — the
 /// same precedence as [Ability.can], applied per field: a rule that
 /// permits adds its fields, one that forbids removes them.
-List<String> permittedFieldsOf(
-  Ability ability,
-  String action,
+List<String> permittedFieldsOf<A extends String, S extends String>(
+  Ability<A, S> ability,
+  A action,
   Object? subject, {
   required List<String> allFields,
 }) {
@@ -54,6 +54,66 @@ List<String> permittedFieldsOf(
     for (final field in allFields)
       if (permitted.contains(field)) field,
   ];
+}
+
+/// Which fields of a subject may be touched, asked over and over.
+///
+/// [permittedFieldsOf] needs the subject's whole field list on every call,
+/// which is fine once and tedious in a repository that asks per row. This holds
+/// the ability, the action and a way to find a type's fields, so the call site
+/// is left with the interesting part:
+///
+/// ```dart
+/// final readable = AccessibleFields(
+///   ability,
+///   'read',
+///   allFieldsOf: (type) => schema[type]!,
+/// );
+///
+/// readable.ofType('Article');   // every article's readable fields
+/// readable.of(article);         // this article's, conditions evaluated
+/// ```
+///
+/// The counterpart of CASL.js's class of the same name. The two questions
+/// differ in the same way `can` does: against a type it asks "which fields are
+/// ever readable", against an instance it evaluates conditions.
+final class AccessibleFields<A extends String, S extends String> {
+  /// Reads [action] fields out of abilities, finding each type's fields with
+  /// [allFieldsOf].
+  const AccessibleFields(
+    this.ability,
+    this.action, {
+    required this.allFieldsOf,
+  });
+
+  /// The ability being asked.
+  final Ability<A, S> ability;
+
+  /// The action every question is about.
+  final A action;
+
+  /// Every field a subject type has.
+  ///
+  /// Required for the same reason [permittedFieldsOf] requires `allFields`: a
+  /// rule with no `fields` means *all* of them, and only the caller knows what
+  /// a subject's fields are.
+  final List<String> Function(S subjectType) allFieldsOf;
+
+  /// The fields readable on *any* subject of [subjectType].
+  List<String> ofType(S subjectType) => permittedFieldsOf(
+    ability,
+    action,
+    subjectType,
+    allFields: allFieldsOf(subjectType),
+  );
+
+  /// The fields readable on this one [subject], with conditions evaluated.
+  List<String> of(Object? subject) => permittedFieldsOf(
+    ability,
+    action,
+    subject,
+    allFields: allFieldsOf(ability.detectSubjectType(subject)),
+  );
 }
 
 /// Turns a rule's patterns back into concrete field names.
@@ -85,10 +145,10 @@ Set<String> _expand(List<String> patterns, List<String> allFields) {
 /// describes a range rather than a value, and inventing one would be a guess
 /// presented to the user as a fact. Forbidding rules are skipped for the same
 /// reason: they say what is *not* allowed, which is not a default.
-Map<String, Object?> rulesToFields(
-  Ability ability,
-  String action,
-  String subjectType,
+Map<String, Object?> rulesToFields<A extends String, S extends String>(
+  Ability<A, S> ability,
+  A action,
+  S subjectType,
 ) {
   final fields = <String, Object?>{};
 

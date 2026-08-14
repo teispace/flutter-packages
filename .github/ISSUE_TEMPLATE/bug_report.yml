@@ -1,0 +1,110 @@
+name: Bug report
+description: Something does not work the way it is documented.
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **If a permission check returns the wrong answer, stop.** That is a
+        security issue — report it privately through the
+        [security policy](https://github.com/teispace/flutter-packages/blob/main/SECURITY.md),
+        not here. A public report is a working exploit for every application
+        that has already shipped.
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - casl
+        - casl_flutter
+        - both
+        - flutter_onboarding
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: From your `pubspec.lock`, not `pubspec.yaml`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: sdk
+    attributes:
+      label: Dart / Flutter version
+      description: Output of `dart --version` or `flutter --version`.
+      placeholder: "Dart 3.12.2 · Flutter 3.44.8"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+      placeholder: |
+        `ability.can('update', article)` returned false. I expected true,
+        because the article's authorId matches the one in the rule.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest code that shows it — including the rules. A snippet
+        someone can paste into a test gets an answer far faster than a
+        description, because reproducing it is the first thing anyone will do.
+      render: dart
+      placeholder: |
+        final ability = createMongoAbility([
+          RawRule.of(action: 'update', subject: 'Article',
+                     conditions: {'authorId': 7}),
+        ]);
+
+        ability.can('update', subject('Article', {'authorId': 7}));  // false?!
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevant_rule
+    attributes:
+      label: What does `relevantRuleFor` say?
+      description: >
+        `ability.relevantRuleFor(action, subject, field)` returns the rule that
+        produced the answer, or null when nothing matched. It usually makes the
+        cause obvious, and it always narrows ours.
+      render: text
+
+  - type: dropdown
+    id: casl_js
+    attributes:
+      label: Does `@casl/ability` decide differently on the same rules?
+      description: >
+        If you know, say. A divergence from CASL.js is the highest-priority
+        class of bug here.
+      options:
+        - "Yes — CASL.js gives a different answer"
+        - "No — CASL.js agrees with what we do"
+        - "Have not checked"
+        - "Not applicable — no JavaScript side"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before submitting
+      options:
+        - label: >
+            I read the four common causes in
+            [SUPPORT.md](https://github.com/teispace/flutter-packages/blob/main/SUPPORT.md)
+            — precedence, type versus instance, subject-type detection,
+            `relevantRuleFor`.
+          required: true
+        - label: I searched existing issues.
+          required: true

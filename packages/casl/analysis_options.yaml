@@ -1,4 +1,25 @@
-include: ../../analysis_options.yaml
+# Self-contained on purpose.
+#
+# `include: ../../analysis_options.yaml` reads a file that is **not inside the
+# published package**, so pub.dev and `pana` resolve it to nothing. That
+# silently switches off every lint here — and because `very_good_analysis` sets
+# `formatter: trailing_commas: preserve`, it also makes correctly formatted
+# source look unformatted, which costs ten pub.dev points and produces a
+# report nobody can act on.
+#
+# The lines below are the price of that not happening. The workspace root keeps
+# its own copy for `tool/` and anything else outside a package.
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    # Deliberately broken fixtures. `test/typed_test.dart` and
+    # `test/exports_test.dart` analyse them explicitly and assert each error,
+    # which is the only way to prove that a misspelled action, or a name this
+    # package no longer exports, does not compile.
+    - "test/type_safety/**"
 
 linter:
   rules:

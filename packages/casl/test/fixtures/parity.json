@@ -1,0 +1,2419 @@
+{
+  "generatedBy": "tool/parity/generate.mjs",
+  "reference": "@casl/ability@7.0.1",
+  "cases": [
+    {
+      "id": "precedence/last-rule-wins",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "Article",
+          "inverted": true
+        },
+        {
+          "action": "read",
+          "subject": "Article"
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "Article"
+      },
+      "expected": true
+    },
+    {
+      "id": "precedence/cannot-after-can",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "Article"
+        },
+        {
+          "action": "read",
+          "subject": "Article",
+          "inverted": true
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "Article"
+      },
+      "expected": false
+    },
+    {
+      "id": "precedence/manage-all",
+      "op": "can",
+      "rules": [
+        {
+          "action": "manage",
+          "subject": "all"
+        }
+      ],
+      "check": {
+        "action": "anything",
+        "subject": "Whatever"
+      },
+      "expected": true
+    },
+    {
+      "id": "precedence/no-rules-denies",
+      "op": "can",
+      "rules": [],
+      "check": {
+        "action": "read",
+        "subject": "Article"
+      },
+      "expected": false
+    },
+    {
+      "id": "precedence/claim-style-no-subject",
+      "op": "can",
+      "rules": [
+        {
+          "action": "publish"
+        }
+      ],
+      "check": {
+        "action": "publish"
+      },
+      "expected": true
+    },
+    {
+      "id": "index/duplicate-action-wildcard",
+      "op": "rules",
+      "rules": [
+        {
+          "action": [
+            "read",
+            "manage"
+          ],
+          "subject": "Article"
+        }
+      ],
+      "action": "read",
+      "subjectType": "Article",
+      "expected": 1
+    },
+    {
+      "id": "index/duplicate-subject-wildcard",
+      "op": "rules",
+      "rules": [
+        {
+          "action": "read",
+          "subject": [
+            "Article",
+            "all"
+          ]
+        }
+      ],
+      "action": "read",
+      "subjectType": "Article",
+      "expected": 1
+    },
+    {
+      "id": "index/actions-for",
+      "op": "actions",
+      "rules": [
+        {
+          "action": [
+            "read",
+            "update"
+          ],
+          "subject": "A"
+        },
+        {
+          "action": "x",
+          "subject": "all"
+        }
+      ],
+      "subjectType": "A",
+      "expected": [
+        "read",
+        "update",
+        "x"
+      ]
+    },
+    {
+      "id": "conditions/eq-scalar-match",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "authorId": 7
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "authorId": 7
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/eq-scalar-miss",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "authorId": 7
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "authorId": 8
+          }
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "conditions/eq-int-vs-double",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "n": 7
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "n": 7
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/eq-object-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "meta": {
+              "x": 1
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "meta": {
+              "x": 1
+            }
+          }
+        }
+      },
+      "expected": false,
+      "deviates": {
+        "dart": true,
+        "reason": "The condition engine CASL.js delegates to compares with `===`, so it structurally cannot match a nested object or a whole array by value. We compare by value, which is what MongoDB itself does. Pass `strictJsEquality: true` for bug-compatibility. See docs/PARITY.md D-01."
+      }
+    },
+    {
+      "id": "conditions/eq-array-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "tags": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "tags": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      },
+      "expected": false,
+      "deviates": {
+        "dart": true,
+        "reason": "The condition engine CASL.js delegates to compares with `===`, so it structurally cannot match a nested object or a whole array by value. We compare by value, which is what MongoDB itself does. Pass `strictJsEquality: true` for bug-compatibility. See docs/PARITY.md D-01."
+      }
+    },
+    {
+      "id": "conditions/eq-scalar-against-array-field",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "tags": "draft"
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "tags": [
+              "draft",
+              "new"
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/null-missing-nested-parent",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "a.b": null
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {}
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "conditions/null-present-parent-missing-key",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "a.b": null
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "a": {}
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/null-top-level-missing-key",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "b": null
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {}
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/null-explicit-null-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "b": null
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "b": null
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/nested-path",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "country.isoCode": "UA"
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "country": {
+              "isoCode": "UA"
+            }
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/path-through-list-flattens",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "comments.author": "a"
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "comments": [
+              {
+                "author": "a"
+              },
+              {
+                "author": "b"
+              }
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/path-numeric-index",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "c.0.author": "a"
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "c": [
+              {
+                "author": "a"
+              },
+              {
+                "author": "b"
+              }
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/null-in-list-preserved",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "items.v": {
+              "$in": [
+                null
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "items": [
+              {
+                "v": null
+              },
+              {
+                "v": 1
+              }
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "conditions/empty-conditions-match-everything",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {}
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "anything": 1
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/ne",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "s": {
+              "$ne": "draft"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "s": "published"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/gt",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "n": {
+              "$gt": 3
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "n": 4
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/gte-boundary",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "n": {
+              "$gte": 3
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "n": 3
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/lt-lte-combined",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "n": {
+              "$gte": 10,
+              "$lte": 50
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "n": 50
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/gt-string",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "s": {
+              "$gt": "m"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "s": "z"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/gt-date",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "at": {
+              "$lte": {
+                "!date": "2024-06-01T00:00:00.000Z"
+              }
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "at": {
+              "!date": "2024-01-01T00:00:00.000Z"
+            }
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/gt-string-vs-number",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "$gt": 3
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": "10"
+          }
+        }
+      },
+      "expected": true,
+      "deviates": {
+        "dart": false,
+        "reason": "JavaScript coerces across types, so `\"10\" > 3` is true. `caslCompare` refuses to order values it cannot compare and returns -1, so the rule denies. A condition comparing a string to a number is a mistake, and denying is the safe reading of a mistake in an authorisation library. See docs/PARITY.md D-12."
+      }
+    },
+    {
+      "id": "op/in-scalar",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "s": {
+              "$in": [
+                "review",
+                "published"
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "s": "review"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/in-array-intersection",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "c": {
+              "$in": [
+                "js",
+                "fe"
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "c": [
+              "js",
+              "acl"
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/nin",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "s": {
+              "$nin": [
+                "draft"
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "s": "published"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/in-nested-array-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "t": {
+              "$in": [
+                [
+                  "a"
+                ]
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "t": [
+              "a"
+            ]
+          }
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "op/in-regex-element",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "t": {
+              "$in": [
+                {
+                  "!re": "^ab",
+                  "flags": ""
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "t": "abc"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/all",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "t": {
+              "$all": [
+                "x",
+                "y"
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "t": [
+              "y",
+              "x",
+              "z"
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/all-missing-one",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "t": {
+              "$all": [
+                "x",
+                "q"
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "t": [
+              "x",
+              "y"
+            ]
+          }
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "op/size",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "t": {
+              "$size": 2
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "t": [
+              1,
+              2
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/size-nested-array-path",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "items.tags": {
+              "$size": 2
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "items": [
+              {
+                "tags": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "tags": [
+                  3
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/regex-string",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "e": {
+              "$regex": "@gmail.com$"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "e": "a@gmail.com"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/regex-options-i",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "t": {
+              "$regex": "^draft",
+              "$options": "i"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "t": "DRAFT x"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/regex-options-g",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "$regex": "ab",
+              "$options": "g"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": "abc"
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/regex-non-string-field",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "$regex": "ab"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 42
+          }
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "op/exists-true",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "b": {
+              "$exists": true
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "b": 1
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/exists-true-null-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "b": {
+              "$exists": true
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "b": null
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/exists-false",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "b": {
+              "$exists": false
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {}
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/exists-nested-missing-parent",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "a.b": {
+              "$exists": true
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {}
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "op/elem-match-object",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "conditions": {
+            "shared": {
+              "$elemMatch": {
+                "permission": "update",
+                "userId": 1
+              }
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": {
+          "type": "A",
+          "value": {
+            "shared": [
+              {
+                "permission": "read",
+                "userId": 2
+              },
+              {
+                "permission": "update",
+                "userId": 1
+              }
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "op/elem-match-splits-across-elements",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "conditions": {
+            "shared": {
+              "$elemMatch": {
+                "permission": "update",
+                "userId": 1
+              }
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": {
+          "type": "A",
+          "value": {
+            "shared": [
+              {
+                "permission": "update",
+                "userId": 2
+              },
+              {
+                "permission": "read",
+                "userId": 1
+              }
+            ]
+          }
+        }
+      },
+      "expected": false
+    },
+    {
+      "id": "op/elem-match-scalars",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "scores": {
+              "$elemMatch": {
+                "$gte": 80
+              }
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "scores": [
+              10,
+              90
+            ]
+          }
+        }
+      },
+      "expected": true
+    },
+    {
+      "id": "parser/toplevel-or-unsupported",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "$or": [
+              {
+                "x": 1
+              },
+              {
+                "y": 2
+              }
+            ]
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 1
+          }
+        }
+      },
+      "expected": false,
+      "deviates": {
+        "dart": {
+          "!throws": true
+        },
+        "reason": "CASL.js only routes a value into the operator path when it recognises a key, so an operator it has never heard of silently becomes an equality test against a literal map and quietly matches nothing. We refuse instead: a rule nobody can evaluate must not be read as a rule that simply does not apply. Pass `onUnparsableCondition: UnparsableCondition.deny` for a client whose server may know operators it does not. See docs/PARITY.md D-06."
+      }
+    },
+    {
+      "id": "parser/unknown-field-operator",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "$mod": [
+                2,
+                0
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 4
+          }
+        }
+      },
+      "expected": false,
+      "deviates": {
+        "dart": {
+          "!throws": true
+        },
+        "reason": "CASL.js only routes a value into the operator path when it recognises a key, so an operator it has never heard of silently becomes an equality test against a literal map and quietly matches nothing. We refuse instead: a rule nobody can evaluate must not be read as a rule that simply does not apply. Pass `onUnparsableCondition: UnparsableCondition.deny` for a client whose server may know operators it does not. See docs/PARITY.md D-06."
+      }
+    },
+    {
+      "id": "parser/operator-mixed-with-plain-key",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "stray": 2,
+              "$gt": 1
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 5
+          }
+        }
+      },
+      "expected": {
+        "!throws": true
+      }
+    },
+    {
+      "id": "parser/plain-nested-object-is-a-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "a": 1
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": {
+              "a": 1
+            }
+          }
+        }
+      },
+      "expected": false,
+      "deviates": {
+        "dart": true,
+        "reason": "The condition engine CASL.js delegates to compares with `===`, so it structurally cannot match a nested object or a whole array by value. We compare by value, which is what MongoDB itself does. Pass `strictJsEquality: true` for bug-compatibility. See docs/PARITY.md D-01."
+      }
+    },
+    {
+      "id": "asymmetry/direct-rule-vs-type",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "conditions": {
+            "authorId": 1
+          }
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": "A"
+      },
+      "expected": true
+    },
+    {
+      "id": "asymmetry/inverted-rule-vs-type",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A"
+        },
+        {
+          "action": "update",
+          "subject": "A",
+          "conditions": {
+            "locked": true
+          },
+          "inverted": true
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": "A"
+      },
+      "expected": true
+    },
+    {
+      "id": "asymmetry/inverted-unconditional-vs-type",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A"
+        },
+        {
+          "action": "update",
+          "subject": "A",
+          "inverted": true
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": "A"
+      },
+      "expected": false
+    },
+    {
+      "id": "field/allowed",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "fields": [
+            "title",
+            "body"
+          ]
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": "A",
+        "field": "title"
+      },
+      "expected": true
+    },
+    {
+      "id": "field/not-listed",
+      "op": "can",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "fields": [
+            "title"
+          ]
+        }
+      ],
+      "check": {
+        "action": "update",
+        "subject": "A",
+        "field": "published"
+      },
+      "expected": false
+    },
+    {
+      "id": "field/inverted-ignored-when-asking-any",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A"
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "secret"
+          ],
+          "inverted": true
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A"
+      },
+      "expected": true
+    },
+    {
+      "id": "field/inverted-blocks-that-field",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A"
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "secret"
+          ],
+          "inverted": true
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A",
+        "field": "secret"
+      },
+      "expected": false
+    },
+    {
+      "id": "field/on-fieldless-rule",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A"
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A",
+        "field": "anything"
+      },
+      "expected": true
+    },
+    {
+      "id": "field/wildcard-single-segment",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "address.*"
+          ]
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A",
+        "field": "address.city"
+      },
+      "expected": true
+    },
+    {
+      "id": "field/wildcard-single-segment-does-not-cross-dot",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "address.*"
+          ]
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A",
+        "field": "address.geo.lat"
+      },
+      "expected": false
+    },
+    {
+      "id": "field/wildcard-double-crosses-dots",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "address.**"
+          ]
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A",
+        "field": "address.geo.lat"
+      },
+      "expected": true
+    },
+    {
+      "id": "field/wildcard-matches-bare-parent",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "address.*"
+          ]
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": "A",
+        "field": "address"
+      },
+      "expected": true
+    },
+    {
+      "id": "permitted/basic",
+      "op": "fields",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "fields": [
+            "title",
+            "description"
+          ]
+        },
+        {
+          "action": "update",
+          "subject": "A",
+          "fields": [
+            "published"
+          ],
+          "inverted": true
+        }
+      ],
+      "action": "update",
+      "subject": "A",
+      "allFields": [
+        "title",
+        "description",
+        "published"
+      ],
+      "expected": [
+        "title",
+        "description"
+      ]
+    },
+    {
+      "id": "permitted/wildcard-expansion",
+      "op": "fields",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "address.*"
+          ]
+        }
+      ],
+      "action": "read",
+      "subject": "A",
+      "allFields": [
+        "title",
+        "address.city"
+      ],
+      "expected": [
+        "address.*"
+      ],
+      "deviates": {
+        "dart": [
+          "address.city"
+        ],
+        "reason": "CASL.js hands back the rule pattern verbatim. We resolve it against `allFields`, because the caller asked which fields to render and a pattern is not a field. See docs/PARITY.md D-14."
+      }
+    },
+    {
+      "id": "permitted/ordering",
+      "op": "fields",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "b"
+          ]
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "fields": [
+            "a"
+          ]
+        }
+      ],
+      "action": "read",
+      "subject": "A",
+      "allFields": [
+        "a",
+        "b"
+      ],
+      "expected": [
+        "b",
+        "a"
+      ],
+      "deviates": {
+        "dart": [
+          "a",
+          "b"
+        ],
+        "reason": "CASL.js returns fields in the order the rules happened to mention them. We return them in `allFields` order, because this drives a form and a form's field order is a design decision, not an accident of rule authoring. See docs/PARITY.md D-14."
+      }
+    },
+    {
+      "id": "permitted/conditions-against-instance",
+      "op": "fields",
+      "rules": [
+        {
+          "action": "update",
+          "subject": "A",
+          "fields": [
+            "title"
+          ],
+          "conditions": {
+            "authorId": 1
+          }
+        }
+      ],
+      "action": "update",
+      "subject": {
+        "type": "A",
+        "value": {
+          "authorId": 2
+        }
+      },
+      "allFields": [
+        "title",
+        "body"
+      ],
+      "expected": []
+    },
+    {
+      "id": "defaults/plain-values",
+      "op": "defaults",
+      "rules": [
+        {
+          "action": "create",
+          "subject": "A",
+          "conditions": {
+            "status": "draft",
+            "authorId": 1
+          }
+        }
+      ],
+      "action": "create",
+      "subjectType": "A",
+      "expected": {
+        "status": "draft",
+        "authorId": 1
+      }
+    },
+    {
+      "id": "defaults/skips-operators-and-inverted",
+      "op": "defaults",
+      "rules": [
+        {
+          "action": "create",
+          "subject": "A",
+          "conditions": {
+            "tags": [
+              "x"
+            ],
+            "n": 0,
+            "s": {
+              "$in": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "action": "create",
+          "subject": "A",
+          "conditions": {
+            "secret": true
+          },
+          "inverted": true
+        }
+      ],
+      "action": "create",
+      "subjectType": "A",
+      "expected": {
+        "tags": [
+          "x"
+        ],
+        "n": 0
+      }
+    },
+    {
+      "id": "defaults/dotted-path-nests",
+      "op": "defaults",
+      "rules": [
+        {
+          "action": "create",
+          "subject": "A",
+          "conditions": {
+            "a.b": 1
+          }
+        }
+      ],
+      "action": "create",
+      "subjectType": "A",
+      "expected": {
+        "a": {
+          "b": 1
+        }
+      }
+    },
+    {
+      "id": "ast/can-and-cannot",
+      "op": "ast",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": 1
+          }
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "y": 2
+          },
+          "inverted": true
+        }
+      ],
+      "action": "read",
+      "subjectType": "A",
+      "expected": {
+        "op": "and",
+        "children": [
+          {
+            "op": "eq",
+            "field": "x",
+            "value": 1
+          },
+          {
+            "op": "not",
+            "children": [
+              {
+                "op": "eq",
+                "field": "y",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ast/nothing-permitted",
+      "op": "ast",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": 1
+          },
+          "inverted": true
+        }
+      ],
+      "action": "read",
+      "subjectType": "A",
+      "expected": null
+    },
+    {
+      "id": "ast/unconditional-can-is-unrestricted",
+      "op": "ast",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A"
+        }
+      ],
+      "action": "read",
+      "subjectType": "A",
+      "expected": {
+        "op": "and",
+        "children": []
+      }
+    },
+    {
+      "id": "ast/unconditional-cannot-stops-the-walk",
+      "op": "ast",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "inverted": true
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": 1
+          }
+        }
+      ],
+      "action": "read",
+      "subjectType": "A",
+      "expected": {
+        "op": "eq",
+        "field": "x",
+        "value": 1
+      }
+    },
+    {
+      "id": "ast/two-permitting-branches",
+      "op": "ast",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": 1
+          }
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "y": 2
+          }
+        }
+      ],
+      "action": "read",
+      "subjectType": "A",
+      "expected": {
+        "op": "or",
+        "children": [
+          {
+            "op": "eq",
+            "field": "y",
+            "value": 2
+          },
+          {
+            "op": "eq",
+            "field": "x",
+            "value": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "ast/no-duplicate-branch-from-wildcard-action",
+      "op": "ast",
+      "rules": [
+        {
+          "action": [
+            "read",
+            "manage"
+          ],
+          "subject": "A",
+          "conditions": {
+            "x": 1
+          }
+        }
+      ],
+      "action": "read",
+      "subjectType": "A",
+      "expected": {
+        "op": "eq",
+        "field": "x",
+        "value": 1
+      }
+    },
+    {
+      "id": "pack/claim-rule",
+      "op": "pack",
+      "rules": [
+        {
+          "action": "read"
+        }
+      ],
+      "expected": [
+        [
+          "read"
+        ]
+      ],
+      "deviates": {
+        "dart": [
+          [
+            "read",
+            "all"
+          ]
+        ],
+        "reason": "`RawRule` normalises a missing subject to `all`, so a claim-style rule packs with a slot CASL.js drops. Both unpack to the same ability and a CASL.js server indexes them identically, so tracking whether the subject was written down would be state carried for a cosmetic difference. See docs/PARITY.md D-13."
+      }
+    },
+    {
+      "id": "pack/full-rule",
+      "op": "pack",
+      "rules": [
+        {
+          "action": [
+            "a",
+            "b"
+          ],
+          "subject": "S",
+          "conditions": {
+            "x": 1
+          },
+          "inverted": true,
+          "fields": [
+            "f"
+          ],
+          "reason": "r"
+        }
+      ],
+      "expected": [
+        [
+          "a,b",
+          "S",
+          {
+            "x": 1
+          },
+          1,
+          "f",
+          "r"
+        ]
+      ]
+    },
+    {
+      "id": "pack/reason-only-keeps-placeholders",
+      "op": "pack",
+      "rules": [
+        {
+          "action": "a",
+          "subject": "S",
+          "reason": "r"
+        }
+      ],
+      "expected": [
+        [
+          "a",
+          "S",
+          0,
+          0,
+          0,
+          "r"
+        ]
+      ]
+    },
+    {
+      "id": "pack/trailing-empties-dropped",
+      "op": "pack",
+      "rules": [
+        {
+          "action": "a",
+          "subject": "S"
+        }
+      ],
+      "expected": [
+        [
+          "a",
+          "S"
+        ]
+      ]
+    },
+    {
+      "id": "pack/multiple-subjects",
+      "op": "pack",
+      "rules": [
+        {
+          "action": "read",
+          "subject": [
+            "A",
+            "B"
+          ]
+        }
+      ],
+      "expected": [
+        [
+          "read",
+          "A,B"
+        ]
+      ]
+    },
+    {
+      "id": "deny/toplevel-or",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "$or": [
+              {
+                "x": 1
+              },
+              {
+                "y": 2
+              }
+            ]
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 1
+          }
+        }
+      },
+      "expected": false,
+      "deny": true
+    },
+    {
+      "id": "deny/unknown-field-operator",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "$mod": [
+                2,
+                0
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 4
+          }
+        }
+      },
+      "expected": false,
+      "deny": true
+    },
+    {
+      "id": "deny/other-rules-survive",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "$or": [
+              {
+                "x": 1
+              }
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": 1
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": 1
+          }
+        }
+      },
+      "expected": true,
+      "deny": true
+    },
+    {
+      "id": "deny/known-operators-still-work",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "n": {
+              "$gte": 3
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "n": 4
+          }
+        }
+      },
+      "expected": true,
+      "deny": true
+    },
+    {
+      "id": "strict/eq-object-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "meta": {
+              "x": 1
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "meta": {
+              "x": 1
+            }
+          }
+        }
+      },
+      "expected": false,
+      "strict": true
+    },
+    {
+      "id": "strict/eq-array-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "tags": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "tags": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      },
+      "expected": false,
+      "strict": true
+    },
+    {
+      "id": "strict/plain-nested-object-is-a-value",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "x": {
+              "a": 1
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "x": {
+              "a": 1
+            }
+          }
+        }
+      },
+      "expected": false,
+      "strict": true
+    },
+    {
+      "id": "strict/scalar-still-matches",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "authorId": 7
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "authorId": 7
+          }
+        }
+      },
+      "expected": true,
+      "strict": true
+    },
+    {
+      "id": "strict/in-still-matches",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "s": {
+              "$in": [
+                "a",
+                "b"
+              ]
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "s": "b"
+          }
+        }
+      },
+      "expected": true,
+      "strict": true
+    },
+    {
+      "id": "strict/date-compares-by-instant",
+      "op": "can",
+      "rules": [
+        {
+          "action": "read",
+          "subject": "A",
+          "conditions": {
+            "at": {
+              "!date": "2024-01-01T00:00:00.000Z"
+            }
+          }
+        }
+      ],
+      "check": {
+        "action": "read",
+        "subject": {
+          "type": "A",
+          "value": {
+            "at": {
+              "!date": "2024-01-01T00:00:00.000Z"
+            }
+          }
+        }
+      },
+      "expected": true,
+      "strict": true
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import 'package:casl/casl.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// Puts an ability in the tree, and rebuilds what depends on it when the
@@ -108,11 +109,32 @@ class _AbilityProviderState extends State<AbilityProvider> {
   }
 
   void _subscribe() {
-    _unsubscribe = widget.ability.on('updated', (_) {
-      // Guarded because rules can arrive from anywhere — a websocket, a token
-      // refresh — including after this subtree has gone.
-      if (mounted) setState(() => _revision++);
-    });
+    _unsubscribe = widget.ability.on('updated', (_) => _republish());
+  }
+
+  void _republish() {
+    // Guarded because rules can arrive from anywhere — a websocket, a token
+    // refresh — including after this subtree has gone.
+    if (!mounted) return;
+
+    // And including from inside a build. A screen that fetches on its first
+    // frame, a locator that initialises lazily, a router redirect — any of them
+    // can replace the rules while the tree is being built, and `setState` then
+    // throws "setState() or markNeedsBuild() called during build".
+    //
+    // React's `useSyncExternalStore` is safe by construction. A StatefulWidget
+    // has to ask, so we ask: if the framework is mid-build, wait for the frame
+    // to end and republish then. The subtree draws the old permissions for one
+    // frame, which is the correct trade — the alternative is an exception.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _revision++);
+      });
+      return;
+    }
+
+    setState(() => _revision++);
   }
 
   @override

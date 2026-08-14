@@ -28,6 +28,36 @@ dev_dependencies:
 # Melos 8 has no melos.yaml. Configuration lives here, under `melos:`, and the
 # workspace members above are what it operates on.
 melos:
+  # Needed by `command/version/linkToCommits` below, which builds the commit
+  # URLs from it.
+  repository: https://github.com/teispace/flutter-packages
+
+  command:
+    # `melos version` reads the conventional commits since each package's last
+    # tag, bumps it, writes its CHANGELOG, and tags `<package>-v<version>` —
+    # which is both what pub.dev's monorepo guidance asks for and what
+    # `.github/workflows/publish.yml` triggers on.
+    #
+    # The part worth having it do rather than a human: when `casl` is bumped it
+    # rewrites `casl_flutter`'s `casl:` constraint to match and gives
+    # `casl_flutter` its own bump for having changed. That is the step most
+    # easily forgotten, and forgetting it publishes a `casl_flutter` that
+    # resolves against the previous `casl`.
+    version:
+      # Every changelog line links to the commit that caused it. In an
+      # authorisation library, "which change made this rule answer
+      # differently" is the question people arrive with.
+      linkToCommits: true
+
+      # Tagging from anywhere but `main` produces a release whose commit is not
+      # on the default branch — findable by nobody, revertable by nobody.
+      branch: main
+
+      # No aggregate root changelog. The root is `publish_to: none`, so it
+      # would be a file with no reader: anyone asking what changed is asking
+      # about a package they depend on.
+      workspaceChangelog: false
+
   scripts:
     analyze:
       description: Static analysis across every package. Infos are failures.
@@ -48,6 +78,59 @@ melos:
         melos exec --depends-on=flutter_test -- flutter test
         melos exec --no-depends-on=flutter_test --dir-exists=test -- dart test
 
+    parity:
+      description: |
+        Regenerates the golden fixtures from a pinned `@casl/ability` and
+        fails if the committed ones differ.
+
+        The fixtures are the contract with CASL.js. A diff here means either
+        that somebody edited them by hand — which defeats the point — or that
+        upstream changed behaviour, which is the one thing no Dart test could
+        otherwise tell us. Requires Node.
+      run: |
+        set -e
+        cd tool/parity
+        npm ci
+        npm run generate
+        cd ../..
+        git diff --exit-code packages/casl/test/fixtures/parity.json
+
+    docs:check:
+      description: |
+        Compiles every fenced Dart block in every README.
+
+        Documentation that does not compile is worse than none: it is
+        confidently wrong, and a reader trusts it. Two of the defects found in
+        this repository's first audit were exactly that, and both were found by
+        a person reading rather than by a machine.
+      run: dart run tool/doc_snippets/check.dart
+
+    coverage:
+      description: |
+        Line coverage per package, against a floor.
+
+        The floor is the point, not the number: it is set just under what the
+        suite already reaches, to catch a change that adds a hundred lines and
+        no tests. Needs `dart pub global activate coverage`.
+      run: dart run tool/coverage/check.dart
+
+    pana:
+      description: |
+        Scores each package the way pub.dev will.
+
+        `casl_flutter` is not scored here. It depends on `casl`, and pana
+        resolves that from pub.dev rather than from this workspace — so until a
+        release of `casl` lands, pana measures the new `casl_flutter` against
+        the old `casl` and reports failures that mean nothing. Score it by hand
+        after publishing `casl`, and add it here once the pair is out.
+      run: |
+        set -e
+        for package in casl flutter_onboarding; do
+          echo "── $package"
+          dart pub global run pana \
+            --no-warning --exit-code-threshold 0 packages/$package
+        done
+
     publish:check:
       description: |
         Dry-run every package against pub.dev. Catches a missing CHANGELOG
@@ -63,4 +146,8 @@ melos:
         melos run format
         melos run analyze
         melos run test
+        melos run parity
+        melos run docs:check
+        melos run coverage
+        melos run pana
         melos run publish:check

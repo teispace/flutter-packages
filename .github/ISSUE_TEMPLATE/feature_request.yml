@@ -1,0 +1,70 @@
+name: Feature request
+description: Something that is not in CASL either, but should be here.
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the thing you want **exists in `@casl/ability` v7**, use the
+        [parity gap](https://github.com/teispace/flutter-packages/issues/new?template=parity_gap.yml)
+        form instead — that is a stronger case and gets handled faster.
+
+        This form is for things CASL does not have: Dart and Flutter
+        ergonomics, integrations with the Dart ecosystem, tooling.
+
+        For anything open-ended, start in
+        [Discussions → Ideas](https://github.com/teispace/flutter-packages/discussions/categories/ideas).
+        An issue is for work that has already been agreed.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do, and what makes it hard today? Describe the
+        situation rather than the solution — the best answer is often not the
+        one either of us thought of first.
+      placeholder: |
+        I use Riverpod. Getting an ability into the widget tree means writing
+        my own bridge from `ability.on('updated')` to a notifier, in every app.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do instead right now
+      description: The workaround, if you have one. Its shape is usually a good hint at the right API.
+      render: dart
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: What it might look like
+      description: A sketch of the call site. It does not have to be right.
+      render: dart
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which package
+      options:
+        - casl — pure Dart, no Flutter
+        - casl_flutter — widgets and BuildContext
+        - a new package
+        - not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Does it hold to the constraints?
+      description: >
+        These are not negotiable, and a proposal that breaks one needs a very
+        good argument. Tick what you are confident about; leave the rest.
+      options:
+        - label: "It does not change what any existing rule means."
+        - label: "It does not change the wire format shared with a CASL.js server."
+        - label: "It does not add a dependency to `casl` — the package deliberately has one, `meta`."
+        - label: "It does not require code generation."

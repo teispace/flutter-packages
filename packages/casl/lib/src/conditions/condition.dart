@@ -11,6 +11,21 @@ import 'package:meta/meta.dart';
 @immutable
 sealed class Condition {
   const Condition();
+
+  /// The condition every subject satisfies.
+  ///
+  /// What an empty `{}` parses to, and the thing an inverted rule is checked
+  /// against when the question is about a subject type rather than an
+  /// instance: only a rule that restricts nothing may forbid a whole type.
+  static const Condition always = CompoundCondition('and', []);
+
+  /// The condition no subject satisfies.
+  ///
+  /// An empty `or`, which by the same reasoning as [always] can never be
+  /// satisfied: none of nothing holds. It is what a condition the parser cannot
+  /// make sense of becomes under `UnparsableCondition.deny` — a rule that
+  /// grants nothing rather than a rule that crashes the app.
+  static const Condition never = CompoundCondition('or', []);
 }
 
 /// A test applied to one field of the subject.
@@ -52,10 +67,3 @@ final class CompoundCondition extends Condition {
   @override
   String toString() => '($operator ${conditions.join(' ')})';
 }
-
-/// The condition every subject satisfies.
-///
-/// What an empty `{}` parses to, and the thing an inverted rule is checked
-/// against when the question is about a subject type rather than an instance:
-/// only a rule that restricts nothing may forbid a whole type.
-const Condition alwaysTrue = CompoundCondition('and', []);

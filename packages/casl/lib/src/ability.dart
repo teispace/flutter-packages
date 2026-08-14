@@ -23,7 +23,7 @@ import 'package:casl/src/rule_index.dart';
 ///
 /// Named as CASL.js v7 names it. Its `PureAbility` from v6 is this class; the
 /// old `Ability` that bundled a Mongo matcher is `createMongoAbility` here.
-class Ability extends RuleIndex {
+class Ability<A extends String, S extends String> extends RuleIndex<A, S> {
   /// Creates an ability over [rules].
   Ability(
     super.rules, {
@@ -35,8 +35,8 @@ class Ability extends RuleIndex {
     super.anySubjectTypeName,
   });
 
-  final List<void Function(AbilityUpdate)> _onUpdate = [];
-  final List<void Function(AbilityUpdate)> _onUpdated = [];
+  final List<AbilityUpdateListener<A, S>> _onUpdate = [];
+  final List<AbilityUpdateListener<A, S>> _onUpdated = [];
 
   /// Whether [action] is permitted on [subject], optionally for one [field].
   ///
@@ -58,13 +58,13 @@ class Ability extends RuleIndex {
   /// permits reading. This surprises people, and it is deliberate: it makes
   /// rules composable, so a role can be layered on top of a base set and
   /// actually override it.
-  bool can(String action, [Object? subject, String? field]) {
+  bool can(A action, [Object? subject, String? field]) {
     final rule = relevantRuleFor(action, subject, field);
     return rule != null && !rule.inverted;
   }
 
   /// The opposite of [can], and exactly that — including for a subject type.
-  bool cannot(String action, [Object? subject, String? field]) =>
+  bool cannot(A action, [Object? subject, String? field]) =>
       !can(action, subject, field);
 
   /// The rule that decides [can], or null when nothing matches at all.
@@ -73,7 +73,7 @@ class Ability extends RuleIndex {
   /// a refusal. The rule itself is returned rather than a boolean because a
   /// forbidding rule may carry a [Rule.reason], which is the difference between
   /// "you cannot do that" and "you cannot do that while the invoice is locked".
-  Rule? relevantRuleFor(String action, [Object? subject, String? field]) {
+  Rule? relevantRuleFor(A action, [Object? subject, String? field]) {
     final subjectType = detectSubjectType(subject);
     final rules = rulesFor(action, subjectType, field);
 
@@ -89,18 +89,28 @@ class Ability extends RuleIndex {
   /// Both events fire around the change: `update` before, with the old rules
   /// still in force, and `updated` after. A UI wants the second; a cache that
   /// needs to read the outgoing state wants the first.
+  ///
+  /// Both listener lists are copied before being walked, because a listener is
+  /// allowed to unsubscribe — itself or another — while it is being called.
+  /// Iterating the live list would throw `ConcurrentModificationError`, and the
+  /// case is not exotic: a permission change that tears down a widget disposes
+  /// it, and disposal is where an unsubscribe lives.
+  ///
+  /// Returns itself, as CASL.js's `update` does.
   @override
-  void update(List<RawRule> rules) {
-    final event = AbilityUpdate(this, rules);
-    for (final listener in _onUpdate) {
+  Ability<A, S> update(List<RawRule> rules) {
+    final event = AbilityUpdate<A, S>(this, rules);
+    for (final listener in List.of(_onUpdate)) {
       listener(event);
     }
 
     super.update(rules);
 
-    for (final listener in _onUpdated) {
+    for (final listener in List.of(_onUpdated)) {
       listener(event);
     }
+
+    return this;
   }
 
   /// Listens for rule changes. Returns a function that stops listening.
@@ -108,7 +118,7 @@ class Ability extends RuleIndex {
   /// ```dart
   /// final off = ability.on('updated', (_) => setState(() {}));
   /// ```
-  void Function() on(String event, void Function(AbilityUpdate) listener) {
+  Unsubscribe on(String event, AbilityUpdateListener<A, S> listener) {
     final listeners = switch (event) {
       'update' => _onUpdate,
       'updated' => _onUpdated,
@@ -128,14 +138,30 @@ class Ability extends RuleIndex {
   }
 }
 
+/// Stops an [Ability.on] listener listening.
+///
+/// Named because a bare `void Function()` in a field declaration says nothing
+/// about what calling it does.
+typedef Unsubscribe = void Function();
+
+/// Called when an ability's rules change. See [Ability.on].
+typedef AbilityUpdateListener<A extends String, S extends String> =
+    void Function(AbilityUpdate<A, S> event);
+
 /// A rule change, as reported to an [Ability.on] listener.
-final class AbilityUpdate {
+final class AbilityUpdate<A extends String, S extends String> {
   /// Creates the event.
   const AbilityUpdate(this.ability, this.rules);
 
   /// The ability being changed.
-  final Ability ability;
+  final Ability<A, S> ability;
 
   /// The rules it is changing to.
   final List<RawRule> rules;
+
+  /// The ability being changed. The name CASL.js v7 uses.
+  ///
+  /// Identical to [ability] — v7 renamed the field and deprecated the old
+  /// spelling, so both exist here and neither is going anywhere.
+  Ability<A, S> get target => ability;
 }

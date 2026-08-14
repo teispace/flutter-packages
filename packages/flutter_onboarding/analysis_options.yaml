@@ -1,1 +1,34 @@
-include: ../../analysis_options.yaml
+# Self-contained on purpose.
+#
+# `include: ../../analysis_options.yaml` reads a file that is **not inside the
+# published package**, so pub.dev and `pana` resolve it to nothing. That
+# silently switches off every lint here — and because `very_good_analysis` sets
+# `formatter: trailing_commas: preserve`, it also makes correctly formatted
+# source look unformatted, which costs ten pub.dev points and produces a
+# report nobody can act on.
+#
+# The lines below are the price of that not happening. The workspace root keeps
+# its own copy for `tool/` and anything else outside a package.
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # Published API. See packages/casl for the same reasoning.
+    public_member_api_docs: true
+
+    # Off because the two SDKs in the CI matrix demand opposite things at the
+    # same three lines, and `--fatal-infos` means one of them has to lose.
+    #
+    # `discarded_futures` requires the fire-and-forget animation calls to be
+    # wrapped in `unawaited(...)`. On a newer SDK the framework annotates those
+    # methods `@awaitNotRequired`, so `unnecessary_unawaited` then reports the
+    # very wrapper the other lint asked for. Keeping the wrapper is the side to
+    # be on: it is what compiles on both, and it states the intent — this
+    # future is deliberately not awaited — which is worth a line whether or not
+    # an annotation happens to make it redundant.
+    unnecessary_unawaited: false

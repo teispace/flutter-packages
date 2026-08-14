@@ -25,7 +25,116 @@ jobs:
   # Flutter rather than plain Dart even for the pure-Dart packages: the SDK
   # bundles both, and one toolchain is one thing to keep in step.
   analyze:
-    name: Format and analyze
+    name: Format and analyze (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # The pinned version is what everyone develops against; the newest stable
+      # is what a user will have. Running both means an SDK release breaks CI
+      # before it breaks somebody's build.
+      #
+      # An empty `version` is how this action is asked for the newest release
+      # on a channel. Passing the literal "stable" as a *version* fails with
+      # "Unable to determine Flutter version for channel: stable version:
+      # stable" — which is what it did the first time this workflow ran.
+      matrix:
+        include:
+          - label: "3.44.8"
+            version: "3.44.8"
+          - label: "latest stable"
+            version: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.version }}
+          channel: stable
+          cache: true
+
+      - name: Activate melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Format
+        run: melos run format
+
+      - name: Analyze
+        run: melos run analyze
+
+  test:
+    name: Tests (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: "3.44.8"
+            version: "3.44.8"
+          - label: "latest stable"
+            version: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.version }}
+          channel: stable
+          cache: true
+
+      - name: Activate melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Test
+        run: melos run test
+
+  # The contract with CASL.js. Regenerating the fixtures from the real
+  # `@casl/ability` and diffing them catches two things nothing else can: a
+  # fixture edited by hand to make a test pass, and an upstream behaviour
+  # change. Both are invisible to every Dart test, because both leave the Dart
+  # suite green.
+  parity:
+    name: Parity with @casl/ability
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tool/parity/package-lock.json
+
+      - name: Regenerate fixtures
+        working-directory: tool/parity
+        run: |
+          npm ci
+          npm run generate
+
+      - name: Fixtures match what is committed
+        run: |
+          if ! git diff --exit-code packages/casl/test/fixtures/parity.json; then
+            echo "::error::The committed parity fixtures do not match what" \
+                 "@casl/ability actually answers. Run" \
+                 "\`cd tool/parity && npm run generate\` and read the diff:" \
+                 "it is either an edit that should not have happened, or an" \
+                 "upstream behaviour change that needs a decision."
+            exit 1
+          fi
+
+  # Documentation that does not compile is confidently wrong, and a reader
+  # trusts it. Two of the defects in this repository's first audit were exactly
+  # that, and both were found by a person reading.
+  docs:
+    name: Every documented snippet compiles
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -43,14 +152,15 @@ jobs:
       - name: Bootstrap
         run: melos bootstrap
 
-      - name: Format
-        run: melos run format
+      - name: Compile the READMEs
+        run: melos run docs:check
 
-      - name: Analyze
-        run: melos run analyze
-
-  test:
-    name: Tests
+  # A coverage floor set just under what the suite already reaches. It is here
+  # to catch a change that adds a hundred lines and no tests — the assurance
+  # comes from the parity fixtures, the fuzzer and the analyzer, not from a
+  # percentage.
+  coverage:
+    name: Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -62,14 +172,42 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Activate melos
-        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+      - name: Activate tooling
+        run: |
+          dart pub global activate melos ${{ env.MELOS_VERSION }}
+          dart pub global activate coverage
 
       - name: Bootstrap
         run: melos bootstrap
 
-      - name: Test
-        run: melos run test
+      - name: Measure
+        run: melos run coverage
+
+  # What pub.dev will say, before pub.dev says it. A points regression is then
+  # visible in review rather than after a release.
+  pana:
+    name: pub.dev score
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Activate tooling
+        run: |
+          dart pub global activate melos ${{ env.MELOS_VERSION }}
+          dart pub global activate pana
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Score
+        run: melos run pana
 
   # Catches what only `pub publish` would otherwise catch: a missing CHANGELOG
   # entry for the current version, a file that would ship by accident, a

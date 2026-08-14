@@ -1,37 +1,28 @@
 # casl_flutter
 
-Flutter bindings for [`casl`](https://pub.dev/packages/casl) — an ability in
-the widget tree, so a screen draws what the user may actually do.
+Flutter bindings for [`casl`](https://pub.dev/packages/casl) — an ability in the
+widget tree, a `Can` widget, and `context.can(...)`.
+
+So a screen draws what the user may actually do, and redraws when that changes.
 
 ```dart
-AbilityProvider(
+final app = AbilityProvider(
   ability: ability,
-  child: MaterialApp(...),
-);
-```
-
-```dart
-// hide it
-Can('delete', article, child: DeleteButton(article: article));
-
-// or keep it and say why not, which is usually kinder
-CanBuilder(
-  'delete',
-  article,
-  builder: (context, can) => Tooltip(
-    message: can.reason ?? '',
-    child: FilledButton(
-      onPressed: can.allowed ? () => delete(article) : null,
-      child: const Text('Delete'),
-    ),
+  child: const MaterialApp(
+    home: Can('create', 'Article', child: Text('New article')),
   ),
 );
-
-// or just ask
-if (context.can('create', 'Article')) const NewArticleButton(),
 ```
 
-`package:casl` is re-exported, so one import covers both.
+| | |
+|---|---|
+| **One question everywhere** | the same rules answer on the server, in a unit test and on screen |
+| **Follows a role change** | `ability.update(...)` and every control redraws — no navigation, nothing to notify |
+| **Type-safe at no cost** | pin the action type and `Can('reed', …)` stops compiling |
+| **Fits your state management** | `AbilityNotifier` for Provider, Riverpod, Bloc — or nothing at all |
+
+Everything is answered by `casl` itself, which is re-exported, so one import is
+enough.
 
 ---
 
@@ -42,6 +33,8 @@ if (context.can('create', 'Article')) const NewArticleButton(),
 - [It follows a change of rules](#it-follows-a-change-of-rules)
 - [Hiding, disabling, and explaining](#hiding-disabling-and-explaining)
 - [Asking from anywhere](#asking-from-anywhere)
+- [Making a typo stop compiling](#making-a-typo-stop-compiling)
+- [Somewhere else to keep the ability](#somewhere-else-to-keep-the-ability)
 - [Field-level UI](#field-level-ui)
 - [Guarding a route](#guarding-a-route)
 - [Testing a permission-aware screen](#testing-a-permission-aware-screen)
@@ -54,136 +47,138 @@ if (context.can('create', 'Article')) const NewArticleButton(),
 
 ```yaml
 dependencies:
-  casl_flutter: ^0.1.0
+  casl_flutter: ^1.0.0
 ```
 
 ```dart
 import 'package:casl_flutter/casl_flutter.dart';
 ```
 
+`casl` comes with it and is re-exported — you do not need it in your pubspec.
+
 ---
 
 ## Providing an ability
 
-Put it above everything that might ask — usually the whole app, or the
-signed-in part of it:
+Wrap the part of the app that needs to ask. Usually that is all of it:
 
 ```dart
-class App extends StatelessWidget {
-  const App({required this.ability, super.key});
+void main() {
+  final ability = createMongoAbility(const []);
 
-  final Ability ability;
-
-  @override
-  Widget build(BuildContext context) => AbilityProvider(
-    ability: ability,
-    child: MaterialApp.router(routerConfig: router),
+  runApp(
+    AbilityProvider(
+      ability: ability,
+      child: const MaterialApp(home: Scaffold()),
+    ),
   );
 }
 ```
 
-Build the ability from whatever your server sent:
+Reading it, with or without subscribing:
 
 ```dart
-final ability = createMongoAbility(
-  unpackRules(json['rules'] as List<Object?>),
-);
+Widget readIt(BuildContext context) {
+  context.ability;                              // subscribes: rebuilds on change
+  AbilityProvider.of(context, listen: false);   // does not
+  AbilityProvider.maybeOf(context);             // null when there is none
+
+  return const SizedBox.shrink();
+}
 ```
 
-Asking with no provider above throws a `FlutterError` naming what is missing.
-Answering "no" would be indistinguishable from a real refusal, and one of those
-is a bug while the other is a support ticket. Use `AbilityProvider.maybeOf` for
-a widget genuinely used on both sides of a sign-in.
+`AbilityProvider.of` throws when there is none, and says so in as many words. A
+check that silently answers "no" because nobody provided an ability is
+indistinguishable from one that answers "no" because the user is not allowed —
+and the second is a support ticket while the first is a bug.
 
 ---
 
 ## It follows a change of rules
 
-`AbilityProvider` **listens** to the ability rather than only holding it. An
-ability is mutable: `update(rules)` replaces the grant in place, which is what
-a token refresh does when a role has changed.
+An ability is mutable. Replace the grant and everything below redraws:
 
 ```dart
-// somewhere in your refresh handler
-ability.update(unpackRules(response['rules'] as List<Object?>));
-// buttons appear and disappear; nothing has to navigate
+void signIn(Ability current, List<RawRule> rules) {
+  current.update(rules);
+}
 ```
 
-Without that, a demoted user keeps their controls until something unrelated
-happens to rebuild the screen — and the screen they are staring at is exactly
-the one that will not.
+That is the whole of it — no navigation, nothing to notify, no rebuilding the
+provider. A user demoted mid-session loses their buttons where they stand.
 
-Replacing the ability object works too, which is what signing in as somebody
-else does:
-
-```dart
-AbilityProvider(ability: abilityForNewUser, child: ...)
-```
+Rules may change during a build, too — a screen that fetches on its first
+frame, a locator that initialises lazily, a router redirect. The provider
+notices and republishes at the end of the frame rather than throwing
+*setState() called during build*.
 
 ---
 
 ## Hiding, disabling, and explaining
 
-Three shapes, and the middle one is right more often than people expect.
+Four shapes, and the fourth is the one people forget.
 
-### Hide it
+### 1. Hide it
 
 ```dart
-Can('create', 'Article', child: const NewArticleButton());
+const hidden = Can('create', 'Article', child: Text('New article'));
 ```
 
-Right when the user has no reason to expect the control — an admin-only section
-of a settings page, a feature their plan does not include and never has.
+Right for something the user has no reason to expect to be there.
 
-### Say something else in its place
+### 2. Say something else in its place
 
 ```dart
-Can(
+const upsell = Can(
   'invite',
-  'User',
-  otherwise: const Text('Ask an administrator to invite people.'),
-  child: const InviteButton(),
+  'Member',
+  otherwise: Text('Upgrade to invite teammates'),
+  child: Text('Invite a teammate'),
 );
 ```
 
-### Keep it, disable it, and explain
+### 3. Keep it, disable it, and say why
+
+Usually the kindest. A control that vanishes is a control the user cannot ask
+about, and a missing button raises a support ticket where a disabled one that
+explains itself does not.
 
 ```dart
-CanBuilder(
+final explained = CanBuilder(
   'delete',
   article,
   builder: (context, can) => Tooltip(
     message: can.reason ?? '',
-    child: IconButton(
-      onPressed: can.allowed ? () => delete(article) : null,
-      icon: const Icon(Icons.delete),
+    child: FilledButton(
+      onPressed: can.allowed ? () {} : null,
+      child: const Text('Delete'),
     ),
   ),
 );
 ```
 
-A control that vanishes is a control the user cannot ask about. Where they have
-reason to expect one — an owner looking at somebody else's document, an account
-that has run out of seats — a disabled control that explains itself prevents
-the support ticket a missing one causes.
+`can.reason` is the **rule's own words**, and null when it gave none — so the
+tooltip appears only when there is something worth reading. `can.message` is
+that, or the default (`Cannot execute "delete" on "Article"`) if the rule said
+nothing; useful in a log, rarely what you want in a tooltip.
 
-`can.reason` is whatever the forbidding rule said, written by whoever wrote the
-rule. That may well be your server, in which case it arrives already in the
-user's language.
+There is deliberately no `not` on `CanBuilder`: it would invert `allowed` and
+leave `reason` describing a refusal the builder had just been told did not
+happen. `!can.allowed` says the same thing and cannot be misread.
 
-### Show something *because* they cannot
+### 4. Show something *because* they cannot
 
 ```dart
-Can(
-  'invite',
-  'User',
+const badge = Can(
+  'update',
+  'Article',
   not: true,
-  child: const UpgradePrompt(),
+  child: Chip(label: Text('Read only')),
 );
 ```
 
-For copy that only makes sense to someone who cannot do the thing. Writing it
-the other way round would put the real content in `otherwise` and read
+For the copy that only makes sense to somebody who cannot do the thing. Writing
+it the other way round would put the real content in `otherwise` and read
 backwards.
 
 ---
@@ -191,115 +186,173 @@ backwards.
 ## Asking from anywhere
 
 ```dart
-context.can('read', article)          // bool
-context.cannot('read', article)       // bool
-context.forbidden('delete', article)  // ForbiddenError?, carrying the reason
-context.ability                       // the ability itself, subscribing
-context.readAbility()                 // …without subscribing
+Widget row(BuildContext context) {
+  if (context.cannot('read', article)) return const SizedBox.shrink();
+
+  return Column(
+    children: [
+      if (context.can('delete', article)) const Text('Delete'),
+      Text(context.forbidden('publish', article)?.reason ?? 'Publish'),
+    ],
+  );
+}
 ```
 
-Everything except `readAbility` subscribes, so the widget rebuilds when the
-rules change. That is what you want almost always. `readAbility` is for a
-callback or an `initState`, where a rebuild is impossible and pointless — by
-the time a tap is handled, the tap is over:
+Each of these subscribes, so the widget rebuilds when the rules change. That is
+what you want almost always. In a callback — where a rebuild is neither wanted
+nor possible, because by then the tap is over — use `context.readAbility()`.
+
+---
+
+## Making a typo stop compiling
+
+`Can('reed', article, …)` compiles, hides the control, and never tells you.
+Pin the action type and it does not:
 
 ```dart
-onPressed: () {
-  final ability = context.readAbility();
-  if (ability.can('delete', article)) delete(article);
-},
+extension type const AppAction(String wire) implements String {
+  static const read = AppAction('read');
+  static const delete = AppAction('delete');
+}
+
+typedef AppCan = Can<AppAction>;
+typedef AppCanBuilder = CanBuilder<AppAction>;
 ```
+
+<!-- continues -->
+
+```dart
+const good = AppCan(AppAction.delete, 'Article', child: Text('Delete'));
+```
+
+<!-- continues -->
+
+```dart
+const bad = AppCan('reed', 'Article', child: Text('Delete'));  // ✗ no compile
+```
+
+Nothing changes at runtime: an `AppAction` *is* a `String`, so the same rules,
+the same wire format and the same `AbilityProvider` serve typed and untyped
+screens side by side. See `casl`'s documentation for declaring the vocabulary.
+
+`context.can(…)` cannot be typed by this package — an extension method infers
+its type argument from whatever it is given, so a raw string would always
+satisfy it. Three lines in your app close that:
+
+<!-- continues -->
+
+```dart
+extension AppAbilityContext on BuildContext {
+  bool may(AppAction action, [Object? subject, String? field]) =>
+      ability.can(action, subject, field);
+}
+```
+
+---
+
+## Somewhere else to keep the ability
+
+`AbilityProvider` is enough on its own. If your app already has a place for
+shared state, `AbilityNotifier` puts the ability there instead — Provider,
+Riverpod, Bloc and `ListenableBuilder` all speak `Listenable`, and none of them
+speak `ability.on('updated', …)`.
+
+```dart
+final watched = ListenableBuilder(
+  listenable: notifier,
+  builder: (context, _) => Text('${notifier.can('read', 'Article')}'),
+);
+```
+
+It listens; it does not own. Disposing the notifier stops it listening, and the
+ability carries on — it usually outlives every screen that watches it, and is
+replaced only at sign-in and sign-out.
 
 ---
 
 ## Field-level UI
 
-`CanBuilder` hands you the ability as well as the answer, for questions these
-widgets do not express:
+A form should draw the boxes the rules allow, rather than drawing them all and
+refusing on submit:
 
 ```dart
-CanBuilder(
-  'update',
-  article,
-  builder: (context, can) => Column(
+Widget buildForm(BuildContext context) {
+  final editable = permittedFieldsOf(
+    context.ability,
+    'update',
+    article,
+    allFields: const ['title', 'body', 'published'],
+  );
+
+  return Column(
     children: [
-      for (final field in permittedFieldsOf(
-        can.ability,
-        'update',
-        article,
-        allFields: Article.editableFields,
-      ))
-        FieldEditor(name: field),
+      for (final field in editable)
+        TextField(decoration: InputDecoration(labelText: field)),
     ],
-  ),
-);
+  );
+}
 ```
 
-Asking per field would give the right answer per field and the wrong list — a
-later rule can take a field back, so the answers do not compose. See
-[`casl`](https://pub.dev/packages/casl#field-level-rules).
+And for one field at a time, `Can` takes a `field`:
+
+```dart
+const titleOnly = Can(
+  'update',
+  'Article',
+  field: 'title',
+  child: Text('Rename'),
+);
+```
 
 ---
 
 ## Guarding a route
 
-There is no route widget here on purpose: every router expresses redirects
-differently, and wrapping one would tie this package to it. A guard is a
-function of the ability, which you already have:
+Ask outside the tree — in a router redirect, an interceptor, a use case — with
+the ability you already hold:
 
 ```dart
-// go_router
-GoRoute(
-  path: '/admin',
-  redirect: (context, state) =>
-      context.readAbility().can('manage', 'all') ? null : '/forbidden',
-  builder: (context, state) => const AdminPage(),
-);
+String? redirect(Ability current) =>
+    current.can('read', 'Admin') ? null : '/forbidden';
 ```
 
-Use `readAbility()` in a redirect — a router callback is not a build, so there
-is nothing to subscribe. To re-evaluate redirects when rules change, feed your
-router's `refreshListenable` from the same signal you use to call
-`ability.update(...)`.
+Inside the tree, `context.readAbility()` is the same question without
+subscribing.
+
+Rules on a client are a **user-experience** control, not an enforcement
+boundary: anyone can patch a binary and answer `true` to every check. The
+server has to enforce the same rules independently — which is the reason this
+package shares CASL's wire format rather than inventing one.
 
 ---
 
 ## Testing a permission-aware screen
 
-Wrap the widget under test and pass the rules the case needs:
+Build the ability the test needs, provide it, and pump:
 
 ```dart
-Future<void> pumpAs(WidgetTester tester, List<RawRule> rules) =>
-    tester.pumpWidget(
-      AbilityProvider(
-        ability: createMongoAbility(rules),
-        child: MaterialApp(home: ArticlePage(article: article)),
-      ),
-    );
+Widget wrap(Ability current, Widget child) => AbilityProvider(
+  ability: current,
+  child: MaterialApp(home: Scaffold(body: child)),
+);
+```
 
+<!-- fragment: a widget test, which needs flutter_test rather than the app -->
+
+```dart
 testWidgets('an author sees the delete button', (tester) async {
-  await pumpAs(tester, [
-    RawRule.of(
-      action: 'delete',
-      subject: 'Article',
-      conditions: {'authorId': 7},
-    ),
-  ]);
+  final ability = defineAbility((can, _) => can('delete', 'Article'));
 
-  expect(find.byIcon(Icons.delete), findsOneWidget);
+  await tester.pumpWidget(
+    wrap(ability, const Can('delete', 'Article', child: Text('Delete'))),
+  );
+
+  expect(find.text('Delete'), findsOneWidget);
 });
 ```
 
-To test that a screen *follows* a change of rules, keep the ability and update
-it mid-test:
-
-```dart
-final ability = createMongoAbility(const []);
-await tester.pumpWidget(...);
-
-ability.update([RawRule.of(action: 'read', subject: 'Article')]);
-await tester.pump();
-```
+Worth testing is the function that *distributes* rules — that a moderator gets
+the moderator rules — rather than `can`, which is pure and belongs to `casl`.
 
 ---
 
@@ -310,9 +363,10 @@ await tester.pump();
 | `AbilityProvider` | puts an ability in the tree and republishes it when the rules change |
 | `AbilityProvider.of` / `.maybeOf` | read it, with or without throwing |
 | `AbilityScope` | the inherited widget, for an app that publishes its own |
-| `Can` | shows `child` when permitted, `otherwise` when not; `not` inverts |
-| `CanBuilder` | builds either way, given a `CanResult` |
-| `CanResult` | `allowed`, `reason`, `refusal`, `ability` |
+| `AbilityNotifier` | the ability as a `ChangeNotifier`, for Provider, Riverpod or Bloc |
+| `Can<A>` | shows `child` when permitted, `otherwise` when not; `not` inverts |
+| `CanBuilder<A>` | builds either way, given a `CanResult` |
+| `CanResult` | `allowed`, `reason`, `message`, `refusal`, `ability` |
 | `context.can` / `.cannot` | the question, subscribing |
 | `context.forbidden` | why not — the rule's own words |
 | `context.ability` / `.readAbility()` | the ability, with or without subscribing |
@@ -326,20 +380,27 @@ is in [`casl`](https://pub.dev/packages/casl), and re-exported from here.
 
 | `@casl/react` | Here |
 |---|---|
-| `<AbilityProvider value={ability}>` | `AbilityProvider(ability: ...)` |
+| `<AbilityProvider value={ability}>` | `AbilityProvider(ability: …)` |
 | `useAbility()` | `context.ability` |
-| `<Can I="read" a="Post">` | `Can('read', 'Post', child: ...)` |
-| `<Can not …>` | `Can(..., not: true)` |
+| `<Can I="read" a="Post">` | `Can('read', 'Post', child: …)` |
+| `<Can not …>` | `Can(…, not: true)` |
 | `<Can passThrough>` with a function child | `CanBuilder` |
-| `{ isAllowed, ability, reason }` | `CanResult` |
+| `{ isAllowed, ability, reason }` | `CanResult` — `allowed`, `ability`, `reason` |
+| — | `CanResult.message`, the resolved text when the rule said nothing |
+| — | `Can<A>` / `CanBuilder<A>`, so a misspelled action stops compiling |
+| — | `AbilityNotifier`, for the state-management package you already use |
 
 React's prop aliases (`I` / `do`, `a` / `an` / `this` / `on` / `of`) exist to
 make JSX read as a sentence. Dart's positional arguments already do, so there
 is one spelling.
 
-`useAbility` subscribes through `useSyncExternalStore`; `AbilityProvider` here
-does the same job with a `StatefulWidget` and an `InheritedWidget`, so the
-subscription is set up once at the provider rather than once per consumer.
+`useAbility` subscribes through `useSyncExternalStore`; `AbilityProvider` does
+the same job with a `StatefulWidget` and an `InheritedWidget`, so the
+subscription is set up once at the provider rather than once per consumer. One
+consequence is worth knowing: `useSyncExternalStore` is safe against a rules
+change arriving *during* a render and a `StatefulWidget` is not, so the
+provider checks the scheduler phase and republishes at the end of the frame
+when the framework is mid-build.
 
 ---
 

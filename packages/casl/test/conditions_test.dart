@@ -389,7 +389,7 @@ void main() {
           },
           {'s': 'ab'},
         ),
-        throwsArgumentError,
+        throwsA(isA<ConditionFormatException>()),
       );
     });
 
@@ -482,7 +482,7 @@ void main() {
           },
           {'a': 1},
         ),
-        throwsUnsupportedError,
+        throwsA(isA<ConditionFormatException>()),
       );
     });
 
@@ -517,10 +517,10 @@ void main() {
           {'a': 5},
         ),
         throwsA(
-          isA<UnsupportedError>().having(
-            (e) => e.message,
-            'message',
-            contains('stray'),
+          isA<ConditionFormatException>().having(
+            (e) => e.operator,
+            'operator',
+            'stray',
           ),
         ),
       );

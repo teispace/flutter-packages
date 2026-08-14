@@ -19,10 +19,25 @@ import 'package:flutter/widgets.dart';
 /// itself prevents the support ticket a missing one causes. Use [otherwise] to
 /// put something in its place, or [CanBuilder] to keep the control and disable
 /// it.
-class Can extends StatelessWidget {
+///
+/// ## Making a typo stop compiling
+///
+/// [A] is the action type. Left alone it infers as `String`, which is the
+/// untyped behaviour and means `Can('reed', …)` compiles and silently hides
+/// the control forever. Pin it with a typedef and it does not:
+///
+/// ```dart
+/// typedef AppCan = Can<AppAction>;
+///
+/// AppCan(AppAction.delete, article, child: const DeleteButton());
+/// AppCan('reed', article, child: const DeleteButton());   // ✗ does not compile
+/// ```
+///
+/// See `package:casl`'s documentation for declaring `AppAction`.
+class Can<A extends String> extends StatelessWidget {
   /// Shows [child] when [action] is permitted on [subject].
   ///
-  /// [subject] may be a subject type — `Can('create', 'Article', ...)` — or an
+  /// [subject] may be a subject type — `Can('create', 'Article', …)` — or an
   /// instance, which asks the more precise question. It is positional and
   /// required rather than optional because Dart forbids mixing optional
   /// positional parameters with named ones; pass `null` for an ability whose
@@ -38,7 +53,7 @@ class Can extends StatelessWidget {
   });
 
   /// What is being attempted.
-  final String action;
+  final A action;
 
   /// What it is being attempted on — a subject type, or an instance.
   final Object? subject;
@@ -76,17 +91,35 @@ final class CanResult {
   /// Whether the action is permitted.
   final bool allowed;
 
-  /// Why not, when it is not.
+  /// The refusal, when there is one. Null whenever [allowed] is true.
   ///
-  /// Carries the forbidding rule's own words where it gave any. Null whenever
-  /// [allowed] is true.
+  /// Carries the action, the subject type and the field as well as the words,
+  /// for a caller that wants to report more than a sentence.
   final ForbiddenError? refusal;
 
   /// The ability that answered, for a question this widget does not express.
   final Ability ability;
 
-  /// The message to show, or null when there is nothing to explain.
-  String? get reason => refusal?.message;
+  /// The forbidding rule's **own words**, or null when it gave none.
+  ///
+  /// The same thing `@casl/react` calls `reason`, and null far more often than
+  /// [message] is: most rules do not explain themselves, and a tooltip showing
+  /// `Cannot execute "delete" on "Article"` is worse than no tooltip at all.
+  ///
+  /// ```dart
+  /// Tooltip(
+  ///   message: can.reason ?? '',   // empty, so no tooltip, unless a rule spoke
+  ///   child: FilledButton(onPressed: can.allowed ? save : null, …),
+  /// )
+  /// ```
+  String? get reason => refusal?.reason;
+
+  /// The message to show, resolved: the rule's [reason] if it gave one, and
+  /// `ForbiddenError.describe`'s default if it did not.
+  ///
+  /// Never null when [allowed] is false — which is why it is not what you want
+  /// in a tooltip unless you have set a default worth reading.
+  String? get message => refusal?.message;
 }
 
 /// Builds either way, told whether the action is permitted.
@@ -108,7 +141,15 @@ final class CanResult {
 ///   ),
 /// )
 /// ```
-class CanBuilder extends StatelessWidget {
+///
+/// The equivalent of `@casl/react`'s `<Can passThrough>` with a render
+/// function. There is deliberately no `not`: it would invert
+/// [CanResult.allowed] and leave [CanResult.reason] describing a refusal the
+/// builder had just been told did not happen. `!can.allowed` says the same
+/// thing and cannot be misread.
+///
+/// [A] pins the action type — see [Can] for what that buys and how.
+class CanBuilder<A extends String> extends StatelessWidget {
   /// Builds with the answer to "may [action] be done to [subject]".
   const CanBuilder(
     this.action,
@@ -119,7 +160,7 @@ class CanBuilder extends StatelessWidget {
   });
 
   /// What is being attempted.
-  final String action;
+  final A action;
 
   /// What it is being attempted on.
   final Object? subject;
