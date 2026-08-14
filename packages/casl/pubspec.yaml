@@ -2,7 +2,7 @@ name: casl
 description: >
   Isomorphic authorisation for Dart. Define what a user can do with rules, ask
   `ability.can(...)`, and share the exact same rules with a CASL.js backend.
-version: 0.1.0
+version: 1.0.0
 repository: https://github.com/teispace/flutter-packages
 homepage: https://github.com/teispace/flutter-packages/tree/main/packages/casl
 issue_tracker: https://github.com/teispace/flutter-packages/issues
