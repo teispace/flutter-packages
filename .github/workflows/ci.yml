@@ -25,22 +25,31 @@ jobs:
   # Flutter rather than plain Dart even for the pure-Dart packages: the SDK
   # bundles both, and one toolchain is one thing to keep in step.
   analyze:
-    name: Format and analyze (${{ matrix.flutter }})
+    name: Format and analyze (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # The pinned version is what everyone develops against; `stable` is what
-      # a user will have. Running both means an SDK release breaks CI before it
-      # breaks somebody's build.
+      # The pinned version is what everyone develops against; the newest stable
+      # is what a user will have. Running both means an SDK release breaks CI
+      # before it breaks somebody's build.
+      #
+      # An empty `version` is how this action is asked for the newest release
+      # on a channel. Passing the literal "stable" as a *version* fails with
+      # "Unable to determine Flutter version for channel: stable version:
+      # stable" — which is what it did the first time this workflow ran.
       matrix:
-        flutter: ["3.44.8", "stable"]
+        include:
+          - label: "3.44.8"
+            version: "3.44.8"
+          - label: "latest stable"
+            version: ""
     steps:
       - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ matrix.flutter }}
+          flutter-version: ${{ matrix.version }}
           channel: stable
           cache: true
 
@@ -57,19 +66,23 @@ jobs:
         run: melos run analyze
 
   test:
-    name: Tests (${{ matrix.flutter }})
+    name: Tests (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        flutter: ["3.44.8", "stable"]
+        include:
+          - label: "3.44.8"
+            version: "3.44.8"
+          - label: "latest stable"
+            version: ""
     steps:
       - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ matrix.flutter }}
+          flutter-version: ${{ matrix.version }}
           channel: stable
           cache: true
 
