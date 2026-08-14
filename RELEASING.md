@@ -35,36 +35,84 @@ would not be a major version, it would be a different package.
 
 ---
 
-## Before you tag
+## Releasing
 
 ```bash
-melos run ci
+melos run ci           # green before anything else
+melos version          # bumps, writes CHANGELOGs, rewrites constraints, tags
+git push --follow-tags
 ```
 
-That is format, analyze, test, parity, docs, coverage, pana and a publish
-dry-run. Green locally means green in CI. Then, by hand:
+That is the whole of it.
 
-- [ ] `CHANGELOG.md` is written **for a reader** — what changed for them, not
-      what was committed. Group under `### Added` / `### Fixed` / `### Changed`,
-      and lead each entry with the consequence rather than the mechanism.
-- [ ] `MIGRATING.md` covers every breaking change, with a `diff` for each.
-- [ ] `version:` bumped, and `## Unreleased` renamed to the version.
-- [ ] The version in each README's install snippet matches.
-- [ ] `git status` is clean. `pub publish` warns about a dirty tree, and it is
-      right to: publishing something that is not in a commit means publishing
-      something nobody can look up.
+`melos version` reads the conventional commits since each package's last tag,
+decides the bump, writes the CHANGELOG entry, commits, and creates a
+`<package>-v<version>` tag for every package it changed. The step worth having
+it do rather than a human: when `casl` moves it rewrites `casl_flutter`'s
+`casl:` constraint to match and gives `casl_flutter` its own bump for having
+changed. That is the step most easily forgotten, and forgetting it publishes a
+`casl_flutter` that resolves against the previous `casl`.
+
+Pushing the tags starts [`publish.yml`](.github/workflows/publish.yml). It
+re-checks the tag against the pubspec and the changelog, re-runs `melos run ci`,
+waits for any workspace dependency to appear on pub.dev, and then publishes
+through pub.dev's OIDC flow — **no long-lived credential exists anywhere**, and
+the published version carries provenance back to the commit.
+
+One thing is deliberately not automatic: the publish job pauses for approval on
+the `pub.dev` environment. Approve it from the run's page.
+
+### Read what it wrote before you push
+
+Nothing has left the machine until `git push`, so the generated changelog is
+still editable:
+
+```bash
+melos version
+$EDITOR packages/casl/CHANGELOG.md         # lead with the consequence, not the mechanism
+git add -A && git commit --amend --no-edit
+git tag -f casl-v1.2.3                     # the tag was made before the amend
+git push --follow-tags
+```
+
+Worth doing for a major, or any release with a migration. A generated entry
+says what was committed; a release with a breaking change needs to say what to
+do about it, and that belongs in `MIGRATING.md` as well as the changelog.
+
+### When it guesses wrong
+
+`flutter_onboarding` is the standing example — a breaking change landed without
+the version moving, so its commit history under-reports the bump:
+
+```bash
+melos version --manual-version flutter_onboarding:major
+```
+
+### Prereleases
+
+A `casl-v1.1.0-beta.1` tag matches nothing in `publish.yml` and does nothing at
+all. That is deliberate: pub.dev's tag-pattern would have to be widened to
+match, and a prerelease of an authorisation library is a decision rather than a
+convenience. Publish one by hand.
 
 ---
 
-## The order, which is not optional
+## The order, which is now enforced rather than remembered
 
-`casl_flutter` depends on `casl`. Publish `casl` first, wait for pub.dev to
-index it, then bump `casl_flutter`'s constraint and publish that.
+`casl_flutter` depends on `casl`, and `melos version` tags both in one commit —
+so both workflow runs start together with nothing sequencing them. Publishing
+`casl_flutter` first would leave a window in which it requires a `casl` that is
+not on pub.dev yet, and every fresh `pub get` during that window fails.
 
-This is why `melos run pana` does not score `casl_flutter`: pana resolves `casl`
-from pub.dev rather than from this workspace, so between the two releases it
-measures the new `casl_flutter` against the old `casl` and reports failures that
-mean nothing. Score it by hand once `casl` is out.
+`publish.yml` closes that itself: before publishing, it polls pub.dev for each
+workspace package the one being published depends on, and waits up to ten
+minutes. If `casl`'s own run fails, `casl_flutter`'s waits and then fails too,
+which is the right outcome.
+
+This is also why `melos run pana` does not score `casl_flutter`: pana resolves
+`casl` from pub.dev rather than from this workspace, so between the two releases
+it measures the new `casl_flutter` against the old `casl` and reports failures
+that mean nothing. Score it by hand once `casl` is out.
 
 ```bash
 dart pub global run pana --no-warning packages/casl_flutter
@@ -72,22 +120,9 @@ dart pub global run pana --no-warning packages/casl_flutter
 
 ---
 
-## Publishing
+## Publishing by hand
 
-Automated publishing is configured on pub.dev per package, so a tag does it:
-
-```bash
-git tag casl-v1.2.3
-git push origin casl-v1.2.3
-```
-
-The tag name carries the package, because a repository with several versioned
-things in it needs tags that are unambiguous. `.github/workflows/release.yml`
-matches `<package>-v<version>`, checks the tag against the pubspec, and
-publishes through pub.dev's OIDC flow — no long-lived credential exists
-anywhere, and the published version carries provenance back to the commit.
-
-If you have to publish by hand:
+The fallback, and how a prerelease goes out:
 
 ```bash
 cd packages/casl
@@ -102,5 +137,44 @@ dart pub publish
       `melos run pana` reproduces it locally.
 - [ ] The example still runs against the published version rather than the
       workspace one.
-- [ ] Open the next `## Unreleased` heading, so the first person to land a
-      change does not have to.
+
+---
+
+## One-time setup
+
+None of the above works until this is done, and none of it can be scripted —
+pub.dev has no API for it. Steps 1 and 2 are per package, all three.
+
+**1. pub.dev → the package → Admin → Automated publishing.**
+
+Enable *Publishing from GitHub Actions* and set:
+
+| | |
+|---|---|
+| Repository | `teispace/flutter-packages` |
+| Tag pattern | `casl-v{{version}}` · `casl_flutter-v{{version}}` · `flutter_onboarding-v{{version}}` |
+| Environment | `pub.dev` |
+
+The tag pattern is the security boundary: pub.dev reads the triggering tag out
+of the OIDC token and refuses to publish a package the tag does not name. It has
+to say the same thing as the matching line in `publish.yml`.
+
+**2. GitHub → Settings → Environments → `pub.dev`.**
+
+Add the maintainers as required reviewers, and limit deployment branches and
+tags to `*-v*`.
+
+This is the control that matters. Without it, **anyone who can push a tag can
+publish** — pub.dev's own documentation says so. With it, publishing is a
+reviewed action even when the tag was not. Configure it before naming it on
+pub.dev, or the first run is rejected.
+
+**3. GitHub → Settings → Rules → Rulesets.**
+
+A tag ruleset targeting `*-v*`, restricting creation to maintainers. Defence in
+depth behind step 2, and it fails earlier and more legibly.
+
+Automated publishing cannot create a package — a first version has to go out
+with `dart pub publish` by hand. All three are already on pub.dev under the
+`teispace.com` publisher, so this does not arise unless a fourth package is
+added.

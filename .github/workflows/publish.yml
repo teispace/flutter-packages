@@ -1,0 +1,165 @@
+name: Publish
+
+# A pushed tag publishes, because pub.dev accepts nothing else. It reads the
+# triggering tag out of the OIDC token and refuses to publish any package whose
+# configured tag-pattern that tag does not match — so one tag publishes exactly
+# one package, and the tag names which.
+#
+# The patterns are written out rather than globbed because they are the security
+# boundary: each one has to say the same thing as the tag-pattern configured on
+# pub.dev, and a `*` here would be a way to get that wrong. A prerelease tag
+# (`casl-v1.1.0-beta.1`) deliberately matches nothing — see RELEASING.md.
+on:
+  push:
+    tags:
+      - "casl-v[0-9]+.[0-9]+.[0-9]+"
+      - "casl_flutter-v[0-9]+.[0-9]+.[0-9]+"
+      - "flutter_onboarding-v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.44.8"
+  MELOS_VERSION: "8.2.2"
+
+jobs:
+  # The tag is the only input, so it is trusted as little as possible:
+  # everything below is derived from it and then checked against what is
+  # actually in the repository.
+  prepare:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      package: ${{ steps.tag.outputs.package }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          package="${tag%-v*}"
+          version="${tag##*-v}"
+
+          if [ ! -d "packages/$package" ]; then
+            echo "::error::No package named '$package' — tag was '$tag'"
+            exit 1
+          fi
+
+          # A tag that disagrees with the pubspec publishes a version nobody can
+          # find the source for. pub.dev rejects it too, but failing here says
+          # why in one line instead of in an OIDC error.
+          declared=$(grep -m1 '^version:' "packages/$package/pubspec.yaml" | awk '{print $2}')
+          if [ "$declared" != "$version" ]; then
+            echo "::error::Tag says $version, packages/$package/pubspec.yaml says $declared"
+            exit 1
+          fi
+
+          # And a version with no changelog entry is a release nobody can read.
+          if ! grep -q "^## $version" "packages/$package/CHANGELOG.md"; then
+            echo "::error::packages/$package/CHANGELOG.md has no '## $version' heading"
+            exit 1
+          fi
+
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing $package $version"
+
+  # The same pipeline a developer runs locally, rather than trusting that CI
+  # ran on the commit the tag points at. A release is the one place where
+  # re-running everything is obviously worth the minutes.
+  verify:
+    name: Everything must be green
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # `melos run ci` calls out to all three of these. Installing only melos
+      # would leave the pipeline failing at the coverage step.
+      - name: Activate tooling
+        run: |
+          dart pub global activate melos ${{ env.MELOS_VERSION }}
+          dart pub global activate coverage
+          dart pub global activate pana
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tool/parity/package-lock.json
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: CI
+        run: melos run ci
+
+      # `melos version` tags every changed package in one commit, so both tags
+      # land together and their workflow runs start in parallel with nothing
+      # ordering them. Publishing `casl_flutter` first would leave a window in
+      # which it requires a `casl` that is not on pub.dev yet, and every fresh
+      # `pub get` during that window fails.
+      #
+      # Waiting is not the elegant fix, but it is the honest one: pub.dev is
+      # eventually consistent and there is nothing to subscribe to.
+      - name: Its workspace dependencies are already on pub.dev
+        run: |
+          set -euo pipefail
+
+          package="${{ needs.prepare.outputs.package }}"
+          pubspec="packages/$package/pubspec.yaml"
+
+          for sibling in $(ls packages); do
+            if [ "$sibling" = "$package" ]; then
+              continue
+            fi
+            grep -qE "^  $sibling:" "$pubspec" || continue
+
+            want=$(grep -m1 '^version:' "packages/$sibling/pubspec.yaml" | awk '{print $2}')
+            echo "$package depends on $sibling — waiting for $sibling $want"
+
+            for attempt in $(seq 1 60); do
+              if curl -sf "https://pub.dev/api/packages/$sibling" \
+                | jq -e --arg v "$want" '.versions[] | select(.version == $v)' \
+                > /dev/null; then
+                echo "  $sibling $want is there"
+                break
+              fi
+
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::$sibling $want never appeared on pub.dev." \
+                     "Publish $sibling first, then re-run this job."
+                exit 1
+              fi
+
+              sleep 10
+            done
+          done
+
+  # pub.dev's own reusable workflow, which is where the OIDC exchange lives:
+  # `dart-lang/setup-dart` mints the token and runs `pub token add`. Using it
+  # rather than our own copy means that when pub.dev changes the flow, it
+  # changes here. It also pins its own actions by SHA.
+  publish:
+    name: Publish to pub.dev
+    needs: [prepare, verify]
+    permissions:
+      id-token: write
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      working-directory: packages/${{ needs.prepare.outputs.package }}
+      # Configured on pub.dev as a requirement, and in this repository with a
+      # required reviewer. Without it, anyone who can push a tag can publish.
+      environment: pub.dev

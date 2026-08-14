@@ -129,10 +129,13 @@ them to clear the marker. A plain skip would let the bookkeeping rot.
 - **Add the test that would have caught it.** Not just a test — the one that
   fails on the parent commit. A change that cannot be tested is worth a
   sentence in the PR saying why.
-- **Add a CHANGELOG entry** under `## Unreleased`, in the package you changed.
-  Do not bump `version:` — that happens at release, when it is known which
-  changes are going out together.
-- **Conventional Commits**, scoped to the package: `fix(casl): …`.
+- **Conventional Commits, scoped to the package**: `fix(casl): …`. This is not
+  a style preference — `melos version` reads these to decide each package's
+  next version and to write its CHANGELOG, so the subject line you write is the
+  line a user reads on pub.dev. Write it for them. A `!` (`feat(casl)!:`) or a
+  `BREAKING CHANGE:` footer is what makes the release a major one.
+- **Do not edit CHANGELOG.md, and do not bump `version:`.** Both are generated
+  at release time, when it is known which changes are going out together.
 - **Document what you export.** `public_member_api_docs` is on, so this is
   enforced rather than requested. Write it for a reader, not for the linter.
 

@@ -28,6 +28,36 @@ dev_dependencies:
 # Melos 8 has no melos.yaml. Configuration lives here, under `melos:`, and the
 # workspace members above are what it operates on.
 melos:
+  # Needed by `command/version/linkToCommits` below, which builds the commit
+  # URLs from it.
+  repository: https://github.com/teispace/flutter-packages
+
+  command:
+    # `melos version` reads the conventional commits since each package's last
+    # tag, bumps it, writes its CHANGELOG, and tags `<package>-v<version>` —
+    # which is both what pub.dev's monorepo guidance asks for and what
+    # `.github/workflows/publish.yml` triggers on.
+    #
+    # The part worth having it do rather than a human: when `casl` is bumped it
+    # rewrites `casl_flutter`'s `casl:` constraint to match and gives
+    # `casl_flutter` its own bump for having changed. That is the step most
+    # easily forgotten, and forgetting it publishes a `casl_flutter` that
+    # resolves against the previous `casl`.
+    version:
+      # Every changelog line links to the commit that caused it. In an
+      # authorisation library, "which change made this rule answer
+      # differently" is the question people arrive with.
+      linkToCommits: true
+
+      # Tagging from anywhere but `main` produces a release whose commit is not
+      # on the default branch — findable by nobody, revertable by nobody.
+      branch: main
+
+      # No aggregate root changelog. The root is `publish_to: none`, so it
+      # would be a file with no reader: anyone asking what changed is asking
+      # about a package they depend on.
+      workspaceChangelog: false
+
   scripts:
     analyze:
       description: Static analysis across every package. Infos are failures.
