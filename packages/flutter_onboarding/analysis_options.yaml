@@ -20,3 +20,15 @@ linter:
   rules:
     # Published API. See packages/casl for the same reasoning.
     public_member_api_docs: true
+
+    # Off because the two SDKs in the CI matrix demand opposite things at the
+    # same three lines, and `--fatal-infos` means one of them has to lose.
+    #
+    # `discarded_futures` requires the fire-and-forget animation calls to be
+    # wrapped in `unawaited(...)`. On a newer SDK the framework annotates those
+    # methods `@awaitNotRequired`, so `unnecessary_unawaited` then reports the
+    # very wrapper the other lint asked for. Keeping the wrapper is the side to
+    # be on: it is what compiles on both, and it states the intent — this
+    # future is deliberately not awaited — which is worth a line whether or not
+    # an annotation happens to make it redundant.
+    unnecessary_unawaited: false
