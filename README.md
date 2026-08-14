@@ -4,7 +4,7 @@ The Dart and Flutter packages we publish, in one repository.
 
 | Package | | What it is |
 |---|---|---|
-| [`casl`](packages/casl) | [![pub](https://img.shields.io/pub/v/casl.svg)](https://pub.dev/packages/casl) | Isomorphic authorisation. Define what a user may do as rules, ask `ability.can(...)`, and share the exact same rules with a CASL.js backend. Pure Dart. |
+| [`casl`](packages/casl) | [![pub](https://img.shields.io/pub/v/casl.svg)](https://pub.dev/packages/casl) | Isomorphic authorisation. Define what a user may do as rules, ask `ability.can(...)`, and share the exact same rules with a CASL.js backend. Type-safe, pure Dart, one dependency. |
 | [`casl_flutter`](packages/casl_flutter) | [![pub](https://img.shields.io/pub/v/casl_flutter.svg)](https://pub.dev/packages/casl_flutter) | Flutter bindings for `casl`: an ability in the widget tree, a `Can` widget, and `context.can(...)`. |
 | [`flutter_onboarding`](packages/flutter_onboarding) | [![pub](https://img.shields.io/pub/v/flutter_onboarding.svg)](https://pub.dev/packages/flutter_onboarding) | A one-time animated onboarding flow: pages, a dots indicator, and a "seen it" flag persisted for you. |
 
@@ -21,8 +21,19 @@ repository, not a release train.
 ```bash
 dart pub global activate melos
 melos bootstrap      # resolves the whole workspace at once
-melos run ci         # format, analyze, test, publish dry-run
+melos run ci         # format, analyze, test, parity, docs, publish dry-run
 ```
+
+Two of those steps are unusual enough to be worth naming:
+
+- **`melos run parity`** regenerates
+  [`packages/casl/test/fixtures/parity.json`](packages/casl/test/fixtures) by
+  running 94 cases through a pinned `@casl/ability@7.0.1`, and fails if the
+  committed answers differ. It needs Node. It is the reason "wire-compatible"
+  is a checked claim rather than an aspiration.
+- **`melos run docs:check`** compiles every fenced Dart block in every README.
+  Documentation that does not compile is worse than none — it is confidently
+  wrong, and a reader trusts it.
 
 `melos run` on its own lists every script with what it does.
 
@@ -56,6 +67,9 @@ normally. It has been verified rather than assumed.
   alternative is the point.
 - **Tests prove failure, not just success.** A test that only walks the happy
   path tells you the code runs, not that it is right.
+- **Documentation is compiled.** Every example in every README is analysed in
+  CI, and an example marked `✗` has to *fail* — so a counter-example that
+  quietly starts compiling is a failure too.
 - **No lockfiles.** A library must resolve against whatever its consumer
   already has. Applications commit `pubspec.lock`; nothing here is one.
 - **Commits follow [Conventional Commits](https://www.conventionalcommits.org),**
@@ -63,14 +77,13 @@ normally. It has been verified rather than assumed.
 
 ## Releasing
 
-Each package is released independently:
+Each package is released on its own, from a `<package>-v<version>` tag.
+[RELEASING.md](RELEASING.md) has the policy and the checklist.
 
-1. Bump `version:` in its `pubspec.yaml` and add a `CHANGELOG.md` entry.
-2. `melos run publish:check` — a dry run of every package.
-3. `dart pub publish` from the package directory.
-
-`casl_flutter` depends on `casl`, so a release that moves both publishes
-`casl` first and waits for pub.dev to index it.
+The one rule worth repeating here: **a change that makes any rule answer
+differently is breaking**, whether or not a single call site has to be edited.
+A caller who upgrades and gets a different answer has had their authorisation
+changed underneath them.
 
 ---
 

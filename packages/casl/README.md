@@ -23,9 +23,10 @@ ability.can('update', article);     // may I update *this* one?
 
 | | |
 |---|---|
-| **Wire-compatible** | `unpackRules(json)` reads exactly what `@casl/ability`'s `packRules` writes |
+| **Wire-compatible, and checked** | 94 cases run through the real `@casl/ability@7.0.1` and replayed here, so a divergence fails a build rather than reaching a user |
+| **Type-safe at no cost** | declare your actions and a typo stops compiling — and they are still plain strings on the wire |
 | **Pure Dart, one dependency** | `meta`. Runs in Flutter, on a server, in a build script |
-| **Complete** | conditions, field-level rules, aliases, events, query building |
+| **Fast** | `can` in ~50 ns against a subject type, ~130 ns against an instance, over a thousand rules |
 | **Widgets** | [`casl_flutter`](https://pub.dev/packages/casl_flutter) |
 
 ---
@@ -35,19 +36,22 @@ ability.can('update', article);     // may I update *this* one?
 - [Install](#install)
 - [The model in one minute](#the-model-in-one-minute)
 - [Writing rules](#writing-rules)
+- [Making a typo stop compiling](#making-a-typo-stop-compiling)
 - [Three things that surprise people](#three-things-that-surprise-people)
 - [Subject types, and why Dart needs care here](#subject-types-and-why-dart-needs-care-here)
 - [Conditions](#conditions)
 - [Field-level rules](#field-level-rules)
 - [Turning rules into a database query](#turning-rules-into-a-database-query)
-- [Sharing rules with a CASL.js server](#sharing-rules-with-a-casljs-server)
+- [Taking rules from a server](#taking-rules-from-a-server)
 - [Refusing, with a reason](#refusing-with-a-reason)
 - [Action aliases](#action-aliases)
 - [Reacting to a change of rules](#reacting-to-a-change-of-rules)
-- [Custom condition languages](#custom-condition-languages)
+- [Extending it](#extending-it)
 - [Testing](#testing)
+- [Performance](#performance)
 - [API reference](#api-reference)
 - [Compared with CASL.js](#compared-with-casljs)
+- [Porting from CASL.js](#porting-from-casljs)
 
 ---
 
@@ -55,12 +59,14 @@ ability.can('update', article);     // may I update *this* one?
 
 ```yaml
 dependencies:
-  casl: ^0.1.0
+  casl: ^1.0.0
 ```
 
 ```dart
 import 'package:casl/casl.dart';
 ```
+
+Coming from 0.1.0? [`MIGRATING.md`](MIGRATING.md).
 
 ---
 
@@ -92,34 +98,122 @@ The pieces, and where each is decided:
 | Condition | a MongoDB-shaped test over the instance | the rule |
 | Field | one property of the subject | the call site |
 
-Nothing here is an enum. Actions and subject types are strings because the set
-is the server's, not the client's — a new subject type added on the backend
-must not require an app release to be *checkable*, only to be *used*.
+Actions and subject types are strings on the wire, because the set is the
+server's rather than the client's — a new subject type added on the backend
+must not need an app release to be *checkable*, only to be *used*. They do not
+have to be strings in your code; see
+[making a typo stop compiling](#making-a-typo-stop-compiling).
 
 ---
 
 ## Writing rules
 
-Rules usually arrive from a server. When you write them by hand,
-`AbilityBuilder` reads better than a list of `RawRule`s:
+Rules usually arrive from a server. When you write them by hand, `defineAbility`
+is the shortest way:
+
+```dart
+final ability = defineAbility((can, cannot) {
+  can('read', 'Article');
+  can.each(['update', 'delete'], 'Article', {'authorId': userId});
+  cannot('delete', 'Article', {'published': true})
+      .because('a published article cannot be deleted');
+});
+```
+
+`can` and `cannot` are the same objects `AbilityBuilder` exposes, so name them
+whatever reads best where you are — `allow` and `forbid` if `can` next to
+`ability.can` confuses people. `can(…)` writes a rule about one action;
+`can.each([…])` writes **one** rule covering several.
+
+`AbilityBuilder` is the same thing spread out, for when the rules are assembled
+across several branches:
 
 ```dart
 final builder = AbilityBuilder()
   ..can('read', 'Article')
-  ..can(['update', 'delete'], 'Article', {'authorId': userId})
-  ..cannot('delete', 'Article', {'published': true});
+  ..can.each(['update', 'delete'], 'Article', {'authorId': userId});
 
-builder
-    .cannot('delete', 'Article', {'locked': true})
-    .because('a locked article cannot be deleted');
+if (user.isModerator) builder.can('publish', 'Article');
 
-final ability = builder.build(create: createMongoAbility);
+final moderatorAbility = builder.build();
 ```
 
-Every field takes one value or a list: `'read'` or `['read', 'update']`.
+Conditions and fields are positional, in that order —
+`can(action, subject, conditions, fields)`. CASL.js overloads its third
+parameter on the type it is given; Dart cannot, so the order is fixed and the
+analyzer checks it. Conditions come first because they are far more common; a
+rule with fields and no conditions passes `null` for them.
 
 **Order is meaning.** Write the broad grant first and narrow it afterwards —
 see below.
+
+---
+
+## Making a typo stop compiling
+
+`ability.can('reed', article)` compiles. It denies. It denies forever, quietly,
+and surfaces weeks later as a support ticket about a missing button. Nothing in
+the type system, the tests or the analyzer catches it, because `'reed'` is a
+perfectly good `String`.
+
+Declare your vocabulary once and it does not compile:
+
+```dart
+extension type const AppAction(String wire) implements String {
+  static const read = AppAction('read');
+  static const create = AppAction('create');
+  static const update = AppAction('update');
+  static const delete = AppAction('delete');
+  static const manage = AppAction('manage');
+
+  /// For a screen that lists them. Extension types have no `values` of their
+  /// own — and unlike an enum's, this one costs nothing at runtime.
+  static const values = <AppAction>[read, create, update, delete, manage];
+}
+
+extension type const AppSubject(String wire) implements String {
+  static const article = AppSubject('Article');
+  static const user = AppSubject('User');
+  static const all = AppSubject('all');
+}
+
+typedef AppAbility = Ability<AppAction, AppSubject>;
+```
+
+<!-- continues -->
+
+```dart
+final AppAbility typed = defineAbility<AppAction, AppSubject>((can, cannot) {
+  can(AppAction.read, AppSubject.article);
+  can(AppAction.update, AppSubject.article, {'authorId': userId});
+});
+
+typed.can(AppAction.update, article);
+```
+
+<!-- continues -->
+
+```dart
+final wrong = createMongoAbility<AppAction, AppSubject>(const []);
+
+wrong.can('reed', article);      // ✗ does not compile
+```
+
+**This costs nothing.** Extension types erase completely: an `AppAction` *is* a
+`String` at runtime. Not one byte changes on the wire, there is no conversion
+per check, and rules from a server need no adaptation — including rules
+mentioning actions your vocabulary has never heard of, which still index and
+still deny.
+
+Leaving the type arguments off gives `Ability<String, String>`, which is exactly
+what it always was. Typed and untyped code interoperate:
+`Ability<AppAction, AppSubject>` *is* an `Ability<String, String>`, so anything
+written against the untyped form keeps working.
+
+Two things it does not catch, and they are the same two TypeScript does not
+catch either: a typo inside the declaration
+(`static const read = AppAction('reed')`), and anything reached through
+`dynamic`.
 
 ---
 
@@ -128,6 +222,8 @@ see below.
 ### 1. The last matching rule wins
 
 Not "cannot beats can".
+
+<!-- fragment: a cascade shown without its builder, to keep the two lines adjacent -->
 
 ```dart
 ..cannot('read', 'Article')
@@ -142,9 +238,11 @@ This is what makes rule sets **composable** — a role can be layered on top of 
 base grant and actually change it:
 
 ```dart
-..can('manage', 'all')            // base: an administrator
-..cannot('delete', 'Invoice')     // except: finance keeps invoices
-..can('delete', 'Invoice', {'status': 'draft'})   // unless it is a draft
+final layered = defineAbility((can, cannot) {
+  can('manage', 'all');                            // base: an administrator
+  cannot('delete', 'Invoice');                     // except: finance keeps them
+  can('delete', 'Invoice', {'status': 'draft'});   // unless it is a draft
+});
 ```
 
 It is also CASL.js's behaviour exactly. A library implementing "any matching
@@ -157,8 +255,11 @@ They are ordinary entries in the rule index that every lookup merges with. One
 rule, `manage:all`, is an administrator's entire grant:
 
 ```dart
-final admin = createMongoAbility([RawRule.of(action: 'manage', subject: 'all')]);
-admin.can('destroy', 'Invoice');   // true
+final everything = createMongoAbility([
+  RawRule.of(action: 'manage', subject: 'all'),
+]);
+
+everything.can('destroy', 'Invoice');   // true
 ```
 
 Which is why a permission check written as
@@ -169,7 +270,7 @@ developer testing it is usually the administrator.
 Both names are configurable, because they are conventions rather than laws:
 
 ```dart
-Ability(rules, anyActionName: 'ALL', anySubjectTypeName: 'EVERYTHING');
+Ability(const [], anyActionName: 'ALL', anySubjectTypeName: 'EVERYTHING');
 ```
 
 ### 3. Asking about a type is a different question from asking about an instance
@@ -206,8 +307,12 @@ class Article with CaslSubject {
   @override
   String get caslSubjectType => 'Article';
 }
+```
 
-ability.can('update', article);
+<!-- continues -->
+
+```dart
+ability.can('update', Article());
 ```
 
 At the call site, for anything else — a JSON map, a generated model, a type
@@ -217,13 +322,19 @@ from another package:
 ability.can('update', subject('Article', json));
 ```
 
-Or supply your own detection for a whole application:
+Or supply your own detection for a whole application. Returning null defers to
+the default, so `subject()` and `CaslSubject` keep working underneath it:
 
 ```dart
-createMongoAbility(rules, detectSubjectType: (value) => switch (value) {
-  ApiModel(:final type) => type,
-  _ => null,   // fall through to the default
-});
+class ApiModel {
+  ApiModel(this.type);
+  final String type;
+}
+
+final detected = createMongoAbility(
+  const [],
+  detectSubjectType: (value) => value is ApiModel ? value.type : null,
+);
 ```
 
 `runtimeType` remains the last resort, and is documented as one.
@@ -232,42 +343,48 @@ createMongoAbility(rules, detectSubjectType: (value) => switch (value) {
 
 ## Conditions
 
-MongoDB-shaped, and the same operators CASL.js ships with:
+MongoDB-shaped, and the same fourteen operators CASL.js ships with:
 
 `$eq` `$ne` `$lt` `$lte` `$gt` `$gte` `$in` `$nin` `$all` `$size` `$regex`
 `$options` `$elemMatch` `$exists`
 
 ```dart
-conditions: {
-  'authorId': userId,
-  'status': {r'$in': ['draft', 'review']},
-  'views': {r'$gte': 100},
-  'title': {r'$regex': '^draft', r'$options': 'i'},
-}
+final scoped = defineAbility((can, _) {
+  can('read', 'Article', {
+    'authorId': userId,
+    'status': {r'$in': ['draft', 'review']},
+    'views': {r'$gte': 100},
+    'title': {r'$regex': '^draft', r'$options': 'i'},
+  });
+});
 ```
+
+Several keys are an implicit AND. Several operators on one field are an AND
+too, so `{'views': {r'$gte': 10, r'$lte': 50}}` is a range.
+
+Nested paths use dots, and a list part-way along is flattened — so
+`'comments.author'` over a list of comments reads as a list of authors, and the
+condition matches if *any* of them does. That is MongoDB's behaviour and the
+reason the dotted form does the useful thing.
 
 ### There are no top-level operators
 
 No `$or`, no `$and`, no `$nor`. A query is an implicit AND of field tests,
-which is CASL's default exactly. An unsupported operator **throws** rather than
+which is CASL's default exactly. An unknown operator **throws** rather than
 being ignored — ignoring one turns a restrictive rule into a permissive one.
 
-If your server really does send more, add them:
+If your server sends them, switch them on rather than refusing them:
 
 ```dart
-final parser = const MongoQueryParser().withOperators({
-  r'$or': (call) => CompoundCondition('or', [
-    for (final query in call.value! as List<Object?>)
-      call.parser.parse(query! as Map<String, Object?>),
-  ]),
-});
-
-createMongoAbility(rules, parser: parser);
+final withLogical = createMongoAbility(
+  const [],
+  parser: const MongoQueryParser().withOperators(logicalOperators),
+);
 ```
 
-### Lists behave as they do in MongoDB
+### The parts worth reading twice
 
-This is the part worth reading twice:
+<!-- fragment: a table of condition syntax against the values each matches -->
 
 ```dart
 // a list matches if it CONTAINS the value
@@ -276,165 +393,132 @@ This is the part worth reading twice:
 // or if the whole list is equal
 {'tags': ['a', 'b']}               // matches {'tags': ['a', 'b']} exactly
 
-// a comparison is satisfied by any one element
-{'scores': {r'$gte': 80}}          // matches {'scores': [10, 90]}
-
-// a list part-way along a path is flattened, not indexed
-{'comments.author': 'ada'}         // is ANY comment Ada's?
-
-// unless the segment is numeric
-{'comments.0.author': 'ada'}       // is the FIRST comment Ada's?
-```
-
-### `null` and `$exists` ask different things
-
-```dart
-{'deletedAt': null}                // absent OR null
-{'deletedAt': {r'$exists': false}} // absent
+// null means absent OR null — of something that could have had the field
+{'deletedAt': null}                // matches {} and {'deletedAt': null}
+{'deletedAt': {r'$exists': false}} // absent only
 {'deletedAt': {r'$exists': true}}  // present, even if null
 ```
 
-Both are questions about the *parent* rather than the value. Getting the pair
-wrong makes optional fields behave inconsistently, in ways nobody traces back
-to authorisation.
-
-### Matching your own models
-
-Conditions read from a `Map` out of the box. To match a model directly, add
-`CaslRecord`:
+Reading a model directly, with no conversion to a map on every check:
 
 ```dart
-class Article with CaslSubject, CaslRecord {
-  Article({required this.authorId, required this.status});
-
-  final int authorId;
-  final String status;
+class Invoice with CaslSubject, CaslRecord {
+  Invoice(this.total);
+  final int total;
 
   @override
-  String get caslSubjectType => 'Article';
+  String get caslSubjectType => 'Invoice';
 
   @override
   Object? caslField(String name) => switch (name) {
-    'authorId' => authorId,
-    'status' => status,
+    'total' => total,
     _ => null,
   };
 }
 ```
 
-The switch is written by hand on purpose. Generating it would tie the field
-names to your Dart identifiers, and the server's names are allowed to differ —
-which is exactly when a generated mapping quietly stops matching.
-
-For a shape neither `Map` nor `CaslRecord` covers, supply a reader:
+Or supply a reader for a shape you do not control:
 
 ```dart
-createMongoAbility(rules, read: (target, field) => (target as Row)[field]);
+final rows = createMongoAbility(
+  const [],
+  read: (target, field) => (target as Map<String, Object?>)[field],
+);
 ```
 
 ---
 
 ## Field-level rules
 
-```dart
-RawRule.of(action: 'update', subject: 'Article', fields: ['title', 'body']);
+A rule may name the fields it covers. `*` stops at a dot and `**` crosses them,
+as in a shell glob:
 
-ability.can('update', article, 'title');    // true
-ability.can('update', article, 'salary');   // false
-ability.can('update', article);             // true — "any field at all?"
+```dart
+final form = defineAbility((can, cannot) {
+  can('update', 'Article', null, ['title', 'body', 'address.**']);
+  cannot('update', 'Article', {'published': true}, ['title']);
+});
+
+form.can('update', 'Article', 'title');
 ```
 
-Patterns work like shell globs — `*` inside one segment, `**` across them:
-
-| Pattern | Matches | Does not match |
-|---|---|---|
-| `title` | `title` | `titles` |
-| `address.*` | `address`, `address.city` | `address.geo.lat` |
-| `address.**` | `address`, `address.city`, `address.geo.lat` | `title` |
-| `*` | `title` | `address.city` |
-| `**` | anything | — |
-
-Note that `address.*` matches `address` itself: a rule about the parts of a
-thing is taken to be a rule about the thing.
-
-### For a form, ask for the list
-
-The answers do not compose — a later rule can take a field back — so asking
-per field gives the right answer per field and the wrong list:
+Asking "which fields, then?" is what a form needs — and asking rule by rule
+would get it wrong, because a later rule can take a field back:
 
 ```dart
-permittedFieldsOf(
+final editable = permittedFieldsOf(
   ability,
   'update',
   article,
-  allFields: ['title', 'body', 'published', 'authorId'],
-);   // → ['title', 'body']
+  allFields: const ['title', 'body', 'published'],
+);
 ```
 
-`allFields` is required and cannot be inferred: a rule with no `fields` means
-*every* field, and Dart has no runtime reflection to enumerate them. Patterns
-are resolved against the names you pass, and the result keeps **your** order,
-because field order in a form is a design decision.
+`allFields` cannot be inferred: a rule with no `fields` means *every* field, and
+only you know what a subject's fields are. Dart has no runtime reflection to
+fall back on, and generating the list would tie it to your class's identifiers
+rather than to the names the server writes rules about.
 
-### Prefilling from conditions
+For a repository asking per row, hold the parts that do not change:
 
 ```dart
-rulesToFields(ability, 'create', 'Article');   // → {'status': 'draft'}
-```
+final readable = AccessibleFields(
+  ability,
+  'read',
+  allFieldsOf: (type) => const {
+    'Article': ['title', 'body'],
+    'User': ['name', 'email'],
+  }[type]!,
+);
 
-So a user who may only create drafts gets a form that already says draft,
-rather than one that lets them choose and then refuses. Operator queries are
-skipped — `{$gte: 100}` is a range, and inventing a value from it would present
-a guess to the user as a fact.
+readable.ofType('Article');   // every article's readable fields
+readable.of(article);         // this one's, conditions evaluated
+```
 
 ---
 
 ## Turning rules into a database query
 
-`can` answers about one record. A list screen needs the other question: *which
-records may this user see?* Asking `can` per row means fetching rows the user
-may not see and discarding them — wrong on a page of ten, impossible on a table
-of ten million.
+`can` answers about one record. A list screen needs the other question — *which
+records* — and asking `can` per row means fetching rows the user may not see
+and throwing them away. That is wrong on a page of ten and impossible on a
+table of ten million.
 
 ```dart
-final where = rulesToAst(ability, 'read', 'Article');
+List<Object?> readableArticles() {
+  final where = rulesToAst(ability, 'read', 'Article');
 
-if (where == null) return const [];     // nothing at all is permitted
-return database.select(translate(where));
+  if (where == null) return const [];     // nothing at all is permitted
+  return database.select(where);
+}
 ```
 
-**`null` is not an empty filter.** Null means fetch nothing; an unrestricted
-result means fetch everything. Conflating them is the difference between an
-empty list and the entire table.
+`null` means "fetch nothing" and is **not** the same as an empty filter, which
+means "fetch everything". Conflating them is the bug this function exists to
+prevent.
 
-### Building for your own query language
-
-`rulesToCondition` is the same algorithm over any language with an *and*, an
-*or* and a negation:
+The result is a `Condition` tree — a sealed type you pattern-match to produce
+whatever your database speaks:
 
 ```dart
-final sql = rulesToCondition<String>(
-  ability.rulesFor('read', 'Article'),
-  (rule) => rule.conditions!.entries.map((e) => '${e.key} = ?').join(' AND '),
-  QueryLanguage(
-    and: (parts) => parts.length == 1 ? parts.single : '(${parts.join(' AND ')})',
-    or: (parts) => parts.length == 1 ? parts.single : '(${parts.join(' OR ')})',
-    not: (part) => 'NOT ($part)',
-    unrestricted: () => '1 = 1',
-  ),
-);
+String toSql(Condition condition) => switch (condition) {
+  FieldCondition(:final operator, :final field, :final value) =>
+    '$field $operator $value',
+  CompoundCondition(:final operator, :final conditions) =>
+    '(${conditions.map(toSql).join(' $operator ')})',
+};
 ```
 
-### Why it is not "OR the permitting rules together"
+`rulesToCondition` is the same algorithm over any target language, if you would
+rather build a Drift `Expression` than walk a tree.
 
-`can` walks rules in priority order and stops at the first match, so a
-permitting rule is only reached when no higher-priority forbidding rule caught
-the record first. A query has no such ordering — it is one boolean expression —
-so the sequence has to be flattened.
+It is not simply "OR the permitting rules together". `can` stops at the first
+matching rule, so a permitting rule is only reached when no higher-priority
+forbidding rule caught the record first — and a query has no such ordering.
+Each permitting rule becomes its own OR branch, bounded by the negation of
+every forbidding rule above it:
 
-Each permitting rule becomes a branch of an OR, bounded by the negation of
-every forbidding rule **above** it. Rules below it are ignored, because
-reaching it already means they did not apply.
+<!-- fragment: rules and the query they produce, side by side -->
 
 ```dart
 ..can('read', 'Article', {'published': true})     // lowest priority
@@ -444,69 +528,87 @@ reaching it already means they did not apply.
 // → or(pinned, and(published, not(secret)))
 ```
 
-`pinned` is unbounded because the forbidding rule sits *below* it. This is
-subtle enough that the package tests it two ways: against an expected tree, and
-by checking the query and `can()` agree record by record.
-
 ---
 
-## Sharing rules with a CASL.js server
+## Taking rules from a server
 
-```ts
-// server
-res.json({ rules: packRules(ability.rules) });
-```
+`packRules` and `unpackRules` read and write CASL.js's compact array format —
+the one meant for a JWT:
 
 ```dart
-// client
-final rules = unpackRules(json['rules'] as List<Object?>);
-final ability = createMongoAbility(rules);
+final compact = packRules(ability.rules);
+final restored = unpackRules(compact);
 ```
 
-The packed form is one array per rule with the empty tail dropped, so the
-common rule costs two strings rather than six keys and their names:
+`RawRule.fromJson` and `toJson` handle the verbose object form. Everything that
+can go wrong reading a rule raises a **`FormatException`**, including a
+condition your build cannot parse — so one catch clause covers the boundary:
 
-```json
-[["manage","all"],
- ["read,update","Article",{"authorId":7}],
- ["delete","Article",0,1,0,"published articles are kept"]]
+```dart
+void applyRules(List<Object?> incoming) {
+  try {
+    ability
+      ..update(unpackRules(incoming))
+      ..validateRules();
+  } on FormatException catch (error) {
+    log.warning('the server sent rules this build cannot read', error);
+  }
+}
 ```
 
-Slots are positional — action, subject, conditions, inverted, fields, reason —
-so a rule with fields and no conditions still carries the `0` that holds the
-place. Plain JSON works too, via `RawRule.fromJson` / `toJson`, at the cost of
-a larger payload.
+`validateRules` is worth the line. Conditions compile **lazily**, and more
+lazily than it looks — a rule checked only against a subject *type* never
+compiles its conditions at all — so a rule carrying an operator this build does
+not know can pass `can('read', 'Article')` and only throw later, when somebody
+opens a list. `validateRules` moves that to a point you chose.
 
-`packSubject` / `unpackSubject` translate subject type names in flight, for a
-server whose rules name classes rather than strings.
+The other half of the answer, for a client that may be older than its server:
+
+```dart
+final tolerant = createMongoAbility(
+  const [],
+  onUnparsableCondition: UnparsableCondition.deny,
+);
+```
+
+A rule it cannot read then grants nothing, instead of throwing. Denying rather
+than ignoring is deliberate: a condition nobody can evaluate must not be read as
+"no condition".
 
 ---
 
 ## Refusing, with a reason
 
-For the layer beneath the UI, where being asked to do something forbidden means
-a bug or a stale screen rather than an expected answer:
+Screens ask `can` and draw accordingly. The layer underneath — a use case
+invoked from somewhere that should already have checked — wants to throw:
 
 ```dart
 ability.throwUnlessCan('delete', article);
-await repository.delete(article.id);
 // ForbiddenError: published articles are kept
 ```
 
-The message prefers the forbidding rule's own `reason` — the difference between
-"you cannot do that" and something the user can act on. `errorUnlessCan`
-returns it instead of throwing, for putting the reason beside a disabled
-control:
+For a message the rule could not know:
+
+```dart
+ForbiddenError.from(ability)
+    .setMessage('You cannot delete posts')
+    .throwUnlessCan('delete', article);
+```
+
+And to report rather than raise — a disabled button that explains itself:
 
 ```dart
 final refusal = ability.errorUnlessCan('delete', article);
-Tooltip(message: refusal?.message ?? '', child: ...);
+final tooltip = refusal?.reason;   // the rule's own words, or null
 ```
 
-Translate the fallback once, at startup:
+`reason` is what the rule said. `message` is that, or the default if it said
+nothing. Set the default once at startup — it is called at throw time, so
+reading the current locale inside it works:
 
 ```dart
-ForbiddenError.describe = (e) => t.errors.notAllowed(action: e.action);
+ForbiddenError.setDefaultMessage('Not authorised');
+ForbiddenError.describe = (e) => 'You cannot ${e.action} a ${e.subjectType}';
 ```
 
 ---
@@ -519,134 +621,206 @@ final resolve = createAliasResolver({
   'access': ['read', 'modify'],     // aliases may chain
 });
 
-final ability = createMongoAbility(rules, resolveActions: resolve);
-// can('access', 'Article') now grants a 'delete' check
+final aliased = createMongoAbility(const [], resolveActions: resolve);
 ```
 
-Cycles and aliasing the wildcard action are refused at construction. Both
-mistakes produce an ability that is *wrong* rather than one that fails, and
-neither is visible in a test that happens not to use the alias.
+Aliases work in one direction only: granting `modify` grants `update` and
+`delete`, but granting both does not grant `modify`. They are resolved once,
+when the ability is built, which is what keeps `can` fast.
+
+Cycles and aliases of `manage` are rejected — including indirect cycles, which
+CASL.js documents itself as *not* detecting.
 
 ---
 
 ## Reacting to a change of rules
 
-An ability is mutable — a role change replaces the grant in place:
+An ability is mutable. `update` replaces the whole grant, which is what a token
+refresh does when a role has changed:
 
 ```dart
-final off = ability.on('updated', (_) => rebuild());
-ability.update(unpackRules(response['rules'] as List<Object?>));
+final off = ability.on('updated', (event) {});
+ability.update(const []);
 off();   // stop listening
 ```
 
-`update` fires before the change, with the old rules still in force, and
-`updated` after. A UI wants the second; a cache that has to read the outgoing
-grant wants the first. `casl_flutter` does this for you.
+`update` fires before the change and `updated` after. A UI wants the second; a
+cache that needs to read the outgoing state wants the first. A listener may
+unsubscribe — itself or another — from inside the callback.
+
+In Flutter, [`casl_flutter`](https://pub.dev/packages/casl_flutter) does this
+wiring for you.
 
 ---
 
-## Custom condition languages
+## Extending it
 
-`Ability` understands no condition language of its own. `createMongoAbility`
-supplies the MongoDB one; anything else is a `ConditionsMatcher`:
+Every part of the evaluation is a table you can add to. An operator takes two
+halves — parsing `$name` into a condition, and evaluating that condition:
 
 ```dart
-Ability(rules, conditionsMatcher: (conditions) => MyMatch(conditions));
+Condition parseMod(OperatorCall call) {
+  final value = call.value;
+  return value is List && value.length == 2
+      ? FieldCondition('mod', call.field, value)
+      : call.refuse('expects a list of two whole numbers');
+}
+
+bool interpretMod(
+  FieldCondition node,
+  Object? subject,
+  ConditionInterpreter it,
+) {
+  final [divisor as int, remainder as int] = node.value! as List;
+  return it.anyOf(
+    it.valueOf(node, subject),
+    (v) => v is int && v % divisor == remainder,
+  );
+}
 ```
 
-A rule with conditions and no matcher **throws when it is compiled**, rather
-than silently matching nothing — a permission system that denies for reasons
-nobody can find is worse than one that fails.
+<!-- continues -->
 
-Implement `ParsedConditions` as well as `ConditionsMatch` if you want
-`rulesToAst` to work with your language.
+```dart
+final extended = createMongoAbility(
+  const [],
+  parser: const MongoQueryParser().withOperators({r'$mod': parseMod}),
+  interpreter: const ConditionInterpreter().withOperators(
+    fields: {'mod': interpretMod},
+  ),
+);
+```
+
+Use `call.refuse` rather than throwing, so a client configured to tolerate rules
+it cannot read still does. Think first about whether the server sending these
+rules understands the same operator — a condition one side evaluates
+differently is worse than one neither does.
+
+The other seams: `read` for how a field is read from an object, `fieldsMatcher`
+for the wildcard syntax, `equals` for how two values are compared, and
+`conditionsMatcher` for replacing MongoDB syntax entirely. A rule's conditions
+stay a `Map` so they can travel; a matcher may read that map however it likes,
+including as the name of a Dart predicate.
 
 ---
 
 ## Testing
 
-Everything is a plain value, so there is nothing to mock:
+Test the function that *distributes* rules, not `can`:
 
 ```dart
-test('an author may edit their own article', () {
-  final ability = createMongoAbility([
-    RawRule.of(
-      action: 'update',
-      subject: 'Article',
-      conditions: {'authorId': 7},
-    ),
-  ]);
-
-  expect(ability.can('update', subject('Article', {'authorId': 7})), isTrue);
-  expect(ability.can('update', subject('Article', {'authorId': 8})), isFalse);
-});
+List<RawRule> rulesFor({required bool isModerator}) =>
+    defineAbility((can, cannot) {
+      can('read', 'Article');
+      if (isModerator) can('publish', 'Article');
+    }).rules;
 ```
 
-The most valuable test to write against your own rules is the round trip: take
-a payload your server actually produced, unpack it, and assert on the answers.
-That is the one that catches the two sides drifting apart.
+`can` is pure — for the same rules it always answers the same thing, and
+testing it tests this package. What is worth testing is that a moderator gets
+the moderator rules, because that is the part your application wrote.
+
+---
+
+## Performance
+
+Over a thousand rules, on an M-series laptop
+(`dart run benchmark/casl_benchmark.dart`):
+
+| | |
+|---|---|
+| `can` against a subject type | 46 ns |
+| `can` against an instance, conditions evaluated | 133 ns |
+| `can` for an administrator — `manage:all` | 50 ns |
+| `can` with a field, on a rule set that has per-field rules | 97 ns |
+| Build the index | 137 µs |
+| `unpackRules` of 1 000 rules | 54 µs |
 
 ---
 
 ## API reference
 
-**Building**
-`RawRule` · `RawRule.of` · `RawRule.fromJson` · `AbilityBuilder` · `Ability` ·
-`createMongoAbility`
+| | |
+|---|---|
+| **Defining** | `defineAbility` · `defineAbilityAsync` · `AbilityBuilder` · `RuleAdder` · `RuleRef` |
+| **Asking** | `Ability.can` · `.cannot` · `.relevantRuleFor` · `.rulesFor` · `.possibleRulesFor` · `.actionsFor` |
+| **Rules** | `RawRule` · `RawRule.of` · `RawRule.fromJson` · `Rule` · `RuleIndex` · `.update` · `.validateRules` |
+| **Subjects** | `subject` · `ForcedSubject` · `CaslSubject` · `CaslRecord` · `detectSubjectTypeByRuntimeType` |
+| **Conditions** | `createMongoAbility` · `MongoQueryParser` · `ConditionInterpreter` · `Condition` · `FieldCondition` · `CompoundCondition` · `CaslFields` |
+| **Fields** | `permittedFieldsOf` · `AccessibleFields` · `fieldPatternMatcher` |
+| **Queries** | `rulesToAst` · `rulesToCondition` · `rulesToFields` · `QueryLanguage` |
+| **Interop** | `packRules` · `unpackRules` · `ForbiddenError` · `AbilityGuard` |
+| **Extending** | `logicalOperators` · `defaultOperators` · `UnparsableCondition` · `ConditionFormatException` · `ValueEquality` · `caslStrictJsEquality` |
 
-**Asking**
-`can` · `cannot` · `relevantRuleFor` · `rulesFor` · `possibleRulesFor` ·
-`actionsFor` · `detectSubjectType`
-
-**Subjects**
-`CaslSubject` · `subject()` · `CaslRecord` · `DetectSubjectType` ·
-`FieldReader`
-
-**Conditions**
-`MongoQueryParser` · `OperatorCall` · `Condition` · `FieldCondition` ·
-`CompoundCondition` · `ConditionInterpreter` · `mongoConditionsMatcher`
-
-**Fields**
-`fieldPatternMatcher` · `permittedFieldsOf` · `rulesToFields`
-
-**Queries**
-`rulesToAst` · `rulesToCondition` · `QueryLanguage`
-
-**Interop**
-`packRules` · `unpackRules` · `PackedRule`
-
-**Errors**
-`ForbiddenError` · `throwUnlessCan` · `errorUnlessCan`
-
-**Changes**
-`update` · `on('update' | 'updated')` · `AbilityUpdate`
-
-**Aliases**
-`createAliasResolver`
+Every exported member is documented; `dart doc` is the reference.
 
 ---
 
 ## Compared with CASL.js
 
-Everything above matches `@casl/ability` v7, including the packed wire format
-and the precedence rules. Two deliberate differences, neither of which can
-change what a rule means:
+Parity is **tested, not claimed**. Ninety-four cases run through a pinned
+`@casl/ability@7.0.1` and are replayed here, so a divergence fails a build
+rather than reaching a user:
 
-| | Here | CASL.js |
-|---|---|---|
-| Subject types | declared (`CaslSubject` / `subject()`) | read from `constructor.name` |
-| Field matcher | defaulted | must be supplied |
+```bash
+cd tool/parity && npm run generate   # records what CASL.js answers
+cd packages/casl && dart test        # replays it
+```
 
-The first exists because Dart obfuscation makes the JS approach unsafe. The
-second replaces a throw with the answer everyone was going to supply.
+Everything matches — precedence, the fourteen operators, the packed wire
+format, `rulesToCondition` — except the differences below. Each is deliberate,
+each is pinned by a fixture carrying its reason, and none can be introduced by
+accident.
+
+### Behaviour
+
+| | Here | CASL.js | Why |
+|---|---|---|---|
+| `{'tags': ['a','b']}` against `{'tags': ['a','b']}` | matches | does not | CASL.js compares with `===`, so it cannot match a nested object or a whole array by value. We compare by value, as MongoDB does. Pass `strictJsEquality: true` to get their behaviour exactly |
+| `{'x': {r'$gt': 3}}` against `{'x': '10'}` | denies | permits | JavaScript coerces across types. A condition comparing a string to a number is a mistake, and denying is the safe reading of a mistake |
+| An unknown operator (`$or`, `$mod`) | throws | silently never matches | A rule nobody can evaluate is a rule nobody should trust. `UnparsableCondition.deny` and `validateRules` are the two levers |
+| `permittedFieldsOf` with `['address.*']` | `['address.city']` | `['address.*']` | A form needs field names, not patterns. Order follows `allFields`, because a form's field order is a design decision |
+
+### Shape
+
+| | Here | CASL.js | Why |
+|---|---|---|---|
+| Subject types | declared (`CaslSubject` / `subject()`) | read from `constructor.name` | `runtimeType` is wrong under `--obfuscate`, silently, in release builds only |
+| Field matcher | defaulted | must be supplied | `*` and `**` mean one thing everywhere; defaulting cannot change what a rule means |
+| Packing a rule with no subject | `["read","all"]` | `["read"]` | Both unpack to the same ability and index identically. Remembering whether the subject was written down would be state carried for a cosmetic difference |
+| Reading a bad rule | always a `FormatException` | mixed | An `Error` means "a programmer wrote this wrong", and there is no programmer involved in a payload off a network |
 
 Naming follows v7: what v6 called `PureAbility` is `Ability` here, and the old
 `Ability` that bundled a Mongo matcher is `createMongoAbility`.
 
-Not ported: the TypeScript type-level machinery (`hkt`, `Generics`,
-`InferSubjects`), which has no Dart equivalent and no runtime behaviour, and
-the ORM integrations (`@casl/mongoose`, `@casl/prisma`) — `rulesToCondition` is
-the hook those are built on, and it is here.
+---
+
+## Porting from CASL.js
+
+| `@casl/ability` | `casl` | |
+|---|---|---|
+| `new Ability(rules, opts)` | `Ability(rules, …)` | |
+| `createMongoAbility(rules)` | `createMongoAbility(rules)` | |
+| `new AbilityBuilder(createMongoAbility)` | `AbilityBuilder()` | the factory defaults |
+| `defineAbility((can, cannot) => …)` | `defineAbility((can, cannot) { … })` | plus `defineAbilityAsync` |
+| `can(['a','b'], 'S', conds)` | `can.each(['a','b'], 'S', conds)` | Dart cannot overload on argument type |
+| `can('a', 'S', ['f'], conds)` | `can('a', 'S', conds, ['f'])` | conditions before fields — the common case first |
+| `.because(reason)` | `.because(reason)` | chainable, as there |
+| `ability.can(a, s, f)` | `ability.can(a, s, f)` | |
+| `ability.update(rules)` | `ability.update(rules)` | returns the ability, as there |
+| `ability.on('updated', fn)` | `ability.on('updated', fn)` | returns an `Unsubscribe` |
+| `subject('Article', obj)` | `subject('Article', obj)` | |
+| `ForbiddenError.from(a).setMessage(m).throwUnlessCan(…)` | same | plus `a.throwUnlessCan(…)` |
+| `ForbiddenError.setDefaultMessage(str)` | same | a function goes to `ForbiddenError.describe` |
+| `createAliasResolver(map)` | `createAliasResolver(map)` | passed as `resolveActions:` |
+| `buildMongoQueryMatcher(instr, interp)` | `MongoQueryParser.withOperators` + `ConditionInterpreter.withOperators` | both halves, explicitly |
+| `packRules` / `unpackRules` | same | |
+| `permittedFieldsOf(a, act, sub, {fieldsFrom})` | `permittedFieldsOf(a, act, sub, allFields:)` | patterns expanded for you |
+| `AccessibleFields` | `AccessibleFields` | |
+| `rulesToFields` / `rulesToAST` / `rulesToQuery` | `rulesToFields` / `rulesToAst` / `rulesToCondition` | |
+| `MongoAbility<[Action, Subject]>` | `Ability<AppAction, AppSubject>` | extension types over `String` |
+| `hkt`, `Generics`, `InferSubjects` | — | type-level only; the generics above solve what they solve |
+| class as a subject type, `modelName` | — | `runtimeType` is unsafe under obfuscation; declare the name instead |
 
 ---
 
