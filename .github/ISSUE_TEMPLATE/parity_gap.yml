@@ -1,0 +1,101 @@
+name: Parity gap with @casl/ability
+description: We answer differently from CASL.js, or something in v7 is missing here.
+labels: ["parity", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the report we most want. The promise of these packages is that a
+        rule means the same thing on a server and on a client — so a divergence
+        is a defect in the premise, not a detail.
+
+        Known and deliberate deviations are listed in the README's
+        "Compared with CASL.js" section. If you think one of them is *wrong*,
+        this is still the right form — say which.
+
+        **If the divergence makes us more permissive than CASL.js**, report it
+        privately through the
+        [security policy](https://github.com/teispace/flutter-packages/blob/main/SECURITY.md)
+        instead. A client that permits what its server refuses is the failure
+        this package exists to prevent.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of gap
+      options:
+        - "Different answer — same rules, same subject, different result"
+        - "Missing API — something in @casl/ability v7 has no equivalent here"
+        - "Different signature — it exists but does not accept what CASL's does"
+        - "Different result shape — same idea, different return value"
+        - "Error behaviour — one throws where the other does not"
+    validations:
+      required: true
+
+  - type: input
+    id: casl_version
+    attributes:
+      label: "@casl/ability version you compared against"
+      placeholder: "7.0.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: js
+    attributes:
+      label: JavaScript — what CASL.js does
+      description: Runnable if you can, with the result as a comment.
+      render: javascript
+      placeholder: |
+        import { createMongoAbility, subject } from '@casl/ability';
+
+        const ability = createMongoAbility([
+          { action: 'read', subject: 'A', conditions: { 'items.tags': { $size: 2 } } },
+        ]);
+
+        ability.can('read', subject('A', { items: [{ tags: [1, 2] }] }));
+        // => true
+    validations:
+      required: true
+
+  - type: textarea
+    id: dart
+    attributes:
+      label: Dart — what we do
+      render: dart
+      placeholder: |
+        final ability = createMongoAbility([
+          RawRule.of(action: 'read', subject: 'A',
+                     conditions: {'items.tags': {r'$size': 2}}),
+        ]);
+
+        ability.can('read', subject('A', {'items': [{'tags': [1, 2]}]}));
+        // => false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Which way does the difference go?
+      description: >
+        Permissive means we allow something CASL.js refuses — a client shows a
+        control the API will reject. That is the urgent direction.
+      options:
+        - "We are more permissive than CASL.js"
+        - "We are more restrictive than CASL.js"
+        - "Neither — different shape or different error, same authorisation outcome"
+        - "Not applicable — missing API"
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: What does this cost you?
+      description: >
+        What you were building when you hit it. This decides priority more than
+        anything else on the form — a gap that blocks real work outranks one
+        found by reading the source.
+    validations:
+      required: true

@@ -1,0 +1,62 @@
+version: 2
+
+updates:
+  # Actions are the supply chain for everything CI does. A compromised action
+  # can read secrets and publish, so these are the updates worth taking fast.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(ci)"
+    labels: ["dependencies", "ci"]
+
+  # One pub entry per workspace member. Dependabot does not resolve pub
+  # workspaces as a unit, so a single root entry would miss the packages.
+  - package-ecosystem: pub
+    directory: /packages/casl
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(casl)"
+    labels: ["dependencies"]
+    # `casl` deliberately depends on `meta` and nothing else — every dependency
+    # is a reason someone cannot adopt an authorisation library. A PR adding
+    # one should be a decision, not a bot.
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pub
+    directory: /packages/casl_flutter
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(casl_flutter)"
+    labels: ["dependencies"]
+    ignore:
+      # `casl` is resolved from this workspace, never from pub.dev. A bump here
+      # would be noise that the lockfile-less workspace ignores anyway.
+      - dependency-name: casl
+
+  - package-ecosystem: pub
+    directory: /packages/flutter_onboarding
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(flutter_onboarding)"
+    labels: ["dependencies"]
+
+  # The parity harness pins @casl/ability exactly, because it is the reference
+  # implementation rather than a dependency. A bump is a deliberate act: it
+  # means re-running the fixtures and reading the diff, since an upstream
+  # behaviour change shows up there and nowhere else.
+  - package-ecosystem: npm
+    directory: /tool/parity
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(parity)"
+    labels: ["dependencies", "parity"]

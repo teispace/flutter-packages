@@ -1,0 +1,20 @@
+# Review is required from a code owner on every path listed here.
+# Later rules win, so the specific entries below override the catch-all.
+
+* @TheKAdhikari
+
+# The authorisation core. A wrong answer here is a security issue in every
+# application that depends on it, so nothing lands without a second reading.
+/packages/casl/lib/                     @TheKAdhikari
+/packages/casl_flutter/lib/             @TheKAdhikari
+
+# The parity harness and its fixtures are the contract with @casl/ability.
+# A changed fixture is a changed promise about what a rule means.
+/tool/parity/                           @TheKAdhikari
+/packages/casl/test/fixtures/           @TheKAdhikari
+
+# Policy, release and supply chain.
+/SECURITY.md                            @TheKAdhikari
+/CODE_OF_CONDUCT.md                     @TheKAdhikari
+/.github/                               @TheKAdhikari
+/analysis_options.yaml                  @TheKAdhikari

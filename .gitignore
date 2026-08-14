@@ -20,6 +20,22 @@ pubspec.lock
 *.iml
 .DS_Store
 
+# Snippets generated from the READMEs by `tool/doc_snippets/check.dart`.
+# Hidden, so `dart format` and `dart analyze .` skip them without an exclude.
+.doc_snippets/
+
 # Coverage
 coverage/
 lcov.info
+
+# Working documents: the roadmap, the parity decision log, design notes. These
+# are how the work is planned and tracked, not what is shipped — the shipped
+# documentation is each package's README and its dartdoc, which is what
+# pub.dev renders.
+docs/
+
+# Parity harness scratch. `package-lock.json` is deliberately *not* ignored:
+# the harness pins a reference implementation rather than depending on one, so
+# the exact resolved tree is part of the contract, and CI runs `npm ci`.
+# The generated fixtures are committed too.
+tool/parity/node_modules/

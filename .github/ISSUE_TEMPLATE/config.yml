@@ -1,0 +1,28 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Question — how do I do X?
+    url: https://github.com/teispace/flutter-packages/discussions/categories/q-a
+    about: >
+      Questions get better answers in Discussions, and stay findable for the
+      next person. Check SUPPORT.md first — most questions are one of four
+      things, and it names all four.
+
+  - name: Idea or feature suggestion
+    url: https://github.com/teispace/flutter-packages/discussions/categories/ideas
+    about: >
+      Talk it through before anyone writes code. If it turns into tracked work,
+      a maintainer will open the issue.
+
+  - name: Security vulnerability
+    url: https://github.com/teispace/flutter-packages/security/advisories/new
+    about: >
+      A permission check giving the wrong answer is a security issue. Report it
+      privately — a public report is a working exploit for everyone who has
+      already shipped.
+
+  - name: How CASL works — rules, conditions, precedence
+    url: https://casl.js.org/v7/en/guide/intro
+    about: >
+      The model here is identical to CASL.js; only the syntax differs. Their
+      guide is the best explanation of the model itself.
