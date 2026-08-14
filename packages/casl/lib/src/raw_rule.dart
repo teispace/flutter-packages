@@ -58,7 +58,16 @@ final class RawRule {
     subjects: subject == null
         ? const [anySubjectType]
         : oneOrMany(subject, 'subject'),
-    fields: fields == null ? null : oneOrMany(fields, 'fields'),
+    // Checked here rather than only when the rule is compiled. An empty list
+    // means "no fields at all", which no rule can usefully say — and finding
+    // that out at `createMongoAbility` time, several frames from the rule that
+    // caused it, is finding out too late. `RawRule.fromJson` turns this into a
+    // `FormatException`, because a server sending it is not a programmer
+    // mistake. Found by the fuzzer in `test/robustness_test.dart`.
+    fields: switch (fields) {
+      null => null,
+      _ => _nonEmptyFields(oneOrMany(fields, 'fields'), fields),
+    },
     conditions: conditions,
     inverted: inverted,
     reason: reason,
@@ -74,6 +83,23 @@ final class RawRule {
       throw const FormatException('a CASL rule must carry an action');
     }
 
+    // Everything in here reports a `FormatException`, including the
+    // `ArgumentError`s that `RawRule.of` raises on its own behalf. The
+    // distinction matters: an `Error` means "a programmer wrote this wrong",
+    // and there is no programmer here — this is a payload off a network, so
+    // failing to read it is an ordinary runtime condition an application is
+    // expected to catch and report. Catching an `Error` is exactly what the
+    // lint warns about and exactly what translating one requires.
+    try {
+      return RawRule._fromJson(json, action);
+      // Translating it, not swallowing it — see the comment above.
+      // ignore: avoid_catching_errors
+    } on ArgumentError catch (error) {
+      throw FormatException('not a CASL rule: ${error.message}', json);
+    }
+  }
+
+  factory RawRule._fromJson(Map<String, Object?> json, Object action) {
     return RawRule.of(
       action: action,
       subject: json['subject'],
@@ -83,10 +109,25 @@ final class RawRule {
         null => null,
         final other => throw FormatException(
           'rule conditions must be an object, got $other',
+          json,
         ),
       },
-      inverted: json['inverted'] == true,
-      reason: json['reason'] as String?,
+      // Truthy rather than `== true`, and matching `unpackRules`, which has
+      // always accepted `1`. A server that writes `"inverted": 1` is not
+      // unusual, and reading that as `false` turns a forbidding rule into a
+      // permitting one — silently, and in the dangerous direction.
+      inverted: json['inverted'] == true || json['inverted'] == 1,
+      reason: switch (json['reason']) {
+        final String reason => reason,
+        null => null,
+        // A bare `as String?` here threw a `TypeError`, which is neither
+        // catchable-by-contract nor informative. Found by the fuzzer in
+        // `test/robustness_test.dart`, which is why that test exists.
+        final other => throw FormatException(
+          'a rule reason must be a string, got $other',
+          json,
+        ),
+      },
     );
   }
 
@@ -158,6 +199,15 @@ final class RawRule {
         '${fields == null ? '' : ' fields:${fields!.join(',')}'}'
         '${conditions == null ? '' : ' where $conditions'}';
   }
+
+  static List<String> _nonEmptyFields(List<String> fields, Object given) =>
+      fields.isNotEmpty
+      ? fields
+      : throw ArgumentError.value(
+          given,
+          'fields',
+          'cannot be empty — omit it to mean "every field"',
+        );
 
   static bool _sameList(List<String>? a, List<String>? b) {
     if (a == null || b == null) return a == b;

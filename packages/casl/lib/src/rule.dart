@@ -85,6 +85,17 @@ final class Rule {
     return match is ParsedConditions ? match.condition : null;
   }
 
+  /// Compiles this rule's conditions now, rather than on the first check that
+  /// needs them.
+  ///
+  /// Throws whatever the conditions matcher throws — a
+  /// `ConditionFormatException` from the built-in one. See
+  /// `RuleIndex.validateRules`, which is how you would normally reach this.
+  void compileConditions() {
+    final conditions = origin.conditions;
+    if (conditions != null) _compiledConditions(conditions);
+  }
+
   /// Whether [subject] satisfies this rule's conditions.
   ///
   /// ## The asymmetry that matters

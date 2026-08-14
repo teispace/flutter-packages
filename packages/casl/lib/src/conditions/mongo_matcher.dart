@@ -1,10 +1,13 @@
 import 'package:casl/src/ability.dart';
+import 'package:casl/src/alias.dart';
 import 'package:casl/src/conditions/condition.dart';
 import 'package:casl/src/conditions/field_reader.dart';
 import 'package:casl/src/conditions/interpreter.dart';
 import 'package:casl/src/conditions/mongo_parser.dart';
+import 'package:casl/src/deep_equals.dart';
 import 'package:casl/src/matchers.dart';
 import 'package:casl/src/raw_rule.dart';
+import 'package:casl/src/subject.dart';
 
 /// A rule's conditions, parsed once and ready to be asked.
 final class MongoConditionsMatch implements ParsedConditions {
@@ -44,15 +47,24 @@ final class MongoConditionsMatch implements ParsedConditions {
 ///   read: (target, field) => (target as MyModel).field(field),
 /// );
 /// ```
+/// Supplying an [interpreter] configures the evaluation side completely, and
+/// [read] and [equals] are then ignored — set them on the interpreter instead.
+/// That is the seam for adding an operator: a parser entry turns `$name` into
+/// a condition, an interpreter entry turns that condition into an answer, and
+/// both halves are needed.
 ConditionsMatcher mongoConditionsMatcher({
   MongoQueryParser parser = const MongoQueryParser(),
-  FieldReader read = readField,
+  FieldReader read = CaslFields.read,
+  ValueEquality equals = deepEquals,
+  ConditionInterpreter? interpreter,
 }) {
-  final interpreter = ConditionInterpreter(read: read);
+  final effective =
+      interpreter ?? ConditionInterpreter(read: read, equals: equals);
+
   return (conditions) => MongoConditionsMatch(
     conditions,
     parser: parser,
-    interpreter: interpreter,
+    interpreter: effective,
   );
 }
 
@@ -72,21 +84,51 @@ ConditionsMatcher mongoConditionsMatcher({
 /// The counterpart of CASL.js's function of the same name, and it accepts the
 /// rules that one produces unchanged — which is the whole point: a server
 /// computes the rules once and both halves of the product agree about them.
-Ability createMongoAbility(
+/// [detectSubjectType] only has to recognise the types it knows about —
+/// returning null defers to [detectSubjectTypeByRuntimeType], so `subject()`
+/// and `CaslSubject` keep working underneath it.
+///
+/// [strictJsEquality] compares condition values the way JavaScript's `===`
+/// does, which is the one place this package deliberately answers differently
+/// from CASL.js by default. See [caslStrictJsEquality] for what it changes and
+/// when you want it.
+/// [onUnparsableCondition] decides what happens when a rule carries an operator
+/// this client does not know. It defaults to throwing, which is right for rules
+/// written in Dart; set it to [UnparsableCondition.deny] for rules arriving
+/// from a server that may have moved ahead of the app.
+///
+/// Supplying your own [parser] overrides that — a parser carries its own
+/// policy, so configure it there instead.
+Ability<A, S> createMongoAbility<A extends String, S extends String>(
   List<RawRule> rules, {
-  MongoQueryParser parser = const MongoQueryParser(),
-  FieldReader read = readField,
-  String? Function(Object value)? detectSubjectType,
-  String anyActionName = 'manage',
-  String anySubjectTypeName = 'all',
-  List<String> Function(List<String>)? resolveActions,
-}) => Ability(
+  MongoQueryParser? parser,
+  FieldReader read = CaslFields.read,
+  PartialDetectSubjectType? detectSubjectType,
+  String anyActionName = anyAction,
+  String anySubjectTypeName = anySubjectType,
+  ResolveActions? resolveActions,
+  bool strictJsEquality = false,
+  UnparsableCondition onUnparsableCondition = UnparsableCondition.fail,
+  ConditionInterpreter? interpreter,
+}) => Ability<A, S>(
   rules,
-  conditionsMatcher: mongoConditionsMatcher(parser: parser, read: read),
+  conditionsMatcher: mongoConditionsMatcher(
+    parser:
+        parser ??
+        MongoQueryParser(onUnparsableCondition: onUnparsableCondition),
+    read: read,
+    equals: strictJsEquality ? caslStrictJsEquality : deepEquals,
+    interpreter: interpreter,
+  ),
   resolveActions: resolveActions,
+  // The fallback is the *full* default, not `runtimeType.toString()`. Falling
+  // back to the raw runtime type would silently disable `subject()` and
+  // `CaslSubject` — the two mechanisms this package tells people to use — the
+  // moment anyone supplied a detector for one of their own models.
   detectSubjectType: detectSubjectType == null
       ? null
-      : (value) => detectSubjectType(value) ?? value.runtimeType.toString(),
+      : (value) =>
+            detectSubjectType(value) ?? detectSubjectTypeByRuntimeType(value),
   anyActionName: anyActionName,
   anySubjectTypeName: anySubjectTypeName,
 );

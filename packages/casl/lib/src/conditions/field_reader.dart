@@ -45,24 +45,56 @@ mixin CaslRecord {
 /// generated model with its own accessor, say.
 typedef FieldReader = Object? Function(Object target, String field);
 
-/// Reads a field from a [Map] or a [CaslRecord].
+/// Reading values out of a subject, the way conditions need them read.
 ///
-/// Anything else reads as null, which is the same answer as a missing field.
-/// That is deliberate: a rule about `authorId` checked against something with
-/// no such notion has not matched, and throwing would turn a permission check
-/// into a crash on a screen the user is already looking at.
-Object? readField(Object target, String field) => switch (target) {
-  final Map<Object?, Object?> map => map[field],
-  final CaslRecord record => record.caslField(field),
-  _ => null,
-};
+/// A namespace rather than four top-level functions, because `readField`,
+/// `readPath` and `hasField` are names an application is quite likely to have
+/// its own versions of — and a package that forces `hide` clauses on a common
+/// import is a package people put down.
+///
+/// A custom operator should prefer `ConditionInterpreter.valueOf` and its
+/// neighbours, which route through whatever [FieldReader] the caller
+/// configured. These are the layer underneath.
+abstract final class CaslFields {
+  /// Reads a field from a [Map] or a [CaslRecord].
+  ///
+  /// Anything else reads as null, which is the same answer as a missing field.
+  /// That is deliberate: a rule about `authorId` checked against something with
+  /// no such notion has not matched, and throwing would turn a permission check
+  /// into a crash on a screen the user is already looking at.
+  static Object? read(Object target, String field) => switch (target) {
+    final Map<Object?, Object?> map => map[field],
+    final CaslRecord record => record.caslField(field),
+    _ => null,
+  };
 
-/// Whether [target] has [field] at all, as `$exists` means it.
-bool hasField(Object? target, String field) => switch (target) {
-  final Map<Object?, Object?> map => map.containsKey(field),
-  final CaslRecord record => record.caslHasField(field),
-  _ => false,
-};
+  /// Whether [target] has [field] at all, as `\$exists` means it.
+  static bool has(Object? target, String field) => switch (target) {
+    final Map<Object?, Object?> map => map.containsKey(field),
+    final CaslRecord record => record.caslHasField(field),
+    _ => false,
+  };
+
+  /// Reads [path] out of [target], following dots and flattening lists.
+  ///
+  /// See the library documentation on [path] for what a list part-way along
+  /// does.
+  static Object? path(
+    Object? target,
+    String path, {
+    FieldReader read = CaslFields.read,
+  }) => _readPath(target, path, read: read);
+
+  /// The object a path's last segment should be read from, and that segment.
+  ///
+  /// `\$exists` and null-equality need the *parent*, because both are questions
+  /// about whether the last step is there at all rather than about its value.
+  static (Object?, String) parent(
+    Object? target,
+    String path, {
+    FieldReader read = CaslFields.read,
+  }) => _readParent(target, path, read: read);
+}
 
 /// Reads [path] out of [target], following dots and flattening lists.
 ///
@@ -75,7 +107,11 @@ bool hasField(Object? target, String field) => switch (target) {
 /// and it is the reason `{'comments.author': 'a'}` does the useful thing.
 ///
 /// A numeric segment indexes instead, so `comments.0.author` is one comment.
-Object? readPath(Object? target, String path, {FieldReader read = readField}) {
+Object? _readPath(
+  Object? target,
+  String path, {
+  FieldReader read = CaslFields.read,
+}) {
   if (target == null) return null;
   if (!path.contains('.')) return _readSegment(target, path, read);
 
@@ -94,20 +130,16 @@ Object? readPath(Object? target, String path, {FieldReader read = readField}) {
   return value;
 }
 
-/// The object a path's last segment should be read from, and that segment.
-///
-/// `$exists` and null-equality need the *parent*, because both are questions
-/// about whether the last step is there at all rather than about its value.
-(Object?, String) readParent(
+(Object?, String) _readParent(
   Object? target,
   String path, {
-  FieldReader read = readField,
+  FieldReader read = CaslFields.read,
 }) {
   final dot = path.lastIndexOf('.');
   if (dot == -1) return (target, path);
 
   return (
-    readPath(target, path.substring(0, dot), read: read),
+    _readPath(target, path.substring(0, dot), read: read),
     path.substring(dot + 1),
   );
 }
@@ -125,8 +157,19 @@ Object? _readSegment(Object? target, String segment, FieldReader read) {
     // shape of the collection they were found in.
     final collected = <Object?>[];
     for (final item in target) {
-      final value = item == null ? null : _readSegment(item, segment, read);
-      if (value == null) continue;
+      if (item == null) continue;
+
+      final value = _readSegment(item, segment, read);
+
+      // A null here means one of two things, and JavaScript can tell them
+      // apart where Dart cannot: `undefined` for a field that is not there,
+      // `null` for one that is there and empty. CASL.js drops only the first.
+      //
+      // That distinction matters more than it looks: JSON has no `undefined`,
+      // so *every* null a server sends is the second kind, and dropping them
+      // would silently change what `{'items.v': {r'$in': [null]}}` matches.
+      if (value == null && !CaslFields.has(item, segment)) continue;
+
       if (value is List) {
         collected.addAll(value);
       } else {

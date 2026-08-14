@@ -119,17 +119,20 @@ R? rulesToCondition<R>(
 /// rather than being skipped: skipping a *forbidding* rule would widen the
 /// query, and a query that returns records the user may not see is the exact
 /// failure this function exists to prevent.
-Condition? rulesToAst(Ability ability, String action, String subjectType) =>
-    rulesToCondition<Condition>(
-      ability.rulesFor(action, subjectType),
-      _ruleToCondition,
-      const QueryLanguage(
-        and: _and,
-        or: _or,
-        not: _not,
-        unrestricted: _unrestricted,
-      ),
-    );
+Condition? rulesToAst<A extends String, S extends String>(
+  Ability<A, S> ability,
+  A action,
+  S subjectType,
+) => rulesToCondition<Condition>(
+  ability.rulesFor(action, subjectType),
+  _ruleToCondition,
+  const QueryLanguage(
+    and: _and,
+    or: _or,
+    not: _not,
+    unrestricted: _unrestricted,
+  ),
+);
 
 Condition _ruleToCondition(Rule rule) {
   final condition = rule.condition;
@@ -150,4 +153,4 @@ Condition _or(List<Condition> parts) =>
 
 Condition _not(Condition part) => CompoundCondition('not', [part]);
 
-Condition _unrestricted() => alwaysTrue;
+Condition _unrestricted() => Condition.always;

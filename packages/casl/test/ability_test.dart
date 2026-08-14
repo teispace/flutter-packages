@@ -304,7 +304,7 @@ void main() {
     test('lists what is written about a subject type, wildcards included', () {
       final ability = abilityOf(
         (b) => b
-          ..can(['read', 'update'], 'Article')
+          ..can.each(const ['read', 'update'], 'Article')
           ..can('audit', 'all'),
       );
 

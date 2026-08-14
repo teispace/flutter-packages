@@ -36,9 +36,19 @@ List<PackedRule> packRules(
 List<RawRule> unpackRules(
   List<Object?> packed, {
   String Function(String packed)? unpackSubject,
-}) => [
-  for (final rule in packed) _unpack(rule, unpackSubject),
-];
+}) {
+  // As with `RawRule.fromJson`: a payload that cannot be read is a runtime
+  // condition, not a programming error, so it arrives as a `FormatException`
+  // whatever went wrong underneath. Catching an `Error` is exactly what the
+  // lint warns about and exactly what translating one requires.
+  try {
+    return [for (final rule in packed) _unpack(rule, unpackSubject)];
+    // Translating it, not swallowing it — see the comment above.
+    // ignore: avoid_catching_errors
+  } on ArgumentError catch (error) {
+    throw FormatException('not a packed CASL rule: ${error.message}', packed);
+  }
+}
 
 PackedRule _pack(RawRule rule, String Function(String)? packSubject) {
   final subjects = packSubject == null

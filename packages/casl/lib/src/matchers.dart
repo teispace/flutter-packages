@@ -7,7 +7,7 @@ import 'package:casl/src/conditions/condition.dart';
 abstract interface class ConditionsMatch {
   /// Whether [subject] satisfies the conditions.
   ///
-  /// [subject] is the unwrapped value, never a `Subject` wrapper.
+  /// [subject] is the unwrapped value, never a `ForcedSubject` wrapper.
   bool matches(Object? subject);
 
   /// Whether these conditions hold for *every* possible subject.
@@ -38,6 +38,12 @@ abstract interface class ParsedConditions implements ConditionsMatch {
 /// add operators, or to match against something other than a map.
 typedef ConditionsMatcher =
     ConditionsMatch Function(Map<String, Object?> conditions);
+
+/// Decides whether two condition values count as equal.
+///
+/// Pluggable because the two reasonable answers disagree, and which one is
+/// right depends on who you are talking to — see `caslStrictJsEquality`.
+typedef ValueEquality = bool Function(Object? a, Object? b);
 
 /// Compiles a rule's `fields` into a predicate over one field name.
 ///

@@ -14,6 +14,7 @@ final class ForbiddenError implements Exception {
   ForbiddenError({
     required this.action,
     required this.subjectType,
+    this.ability,
     this.subject,
     this.field,
     this.reason,
@@ -34,6 +35,48 @@ final class ForbiddenError implements Exception {
   /// ```
   static ForbiddenMessageBuilder describe = _defaultDescribe;
 
+  /// Uses [message] for every refusal that has no [reason] of its own.
+  ///
+  /// The fixed-string half of CASL.js's `setDefaultMessage`, spelled the same
+  /// way so a ported call site keeps compiling:
+  ///
+  /// ```dart
+  /// ForbiddenError.setDefaultMessage('Not authorised');
+  /// ```
+  ///
+  /// CASL.js's other half — passing a function — is [describe] here:
+  ///
+  /// ```dart
+  /// ForbiddenError.describe = (e) => 'You cannot ${e.action} that';
+  /// ```
+  ///
+  /// Two names rather than one parameter typed `Object`, because a union Dart
+  /// cannot express costs the closure its inferred parameter type — every
+  /// caller would have to write `(ForbiddenError e)` in full.
+  static void setDefaultMessage(String message) => describe = (_) => message;
+
+  /// Restores the built-in default message.
+  ///
+  /// Mostly for tests, which would otherwise leak a [describe] set by one case
+  /// into every case after it.
+  static void resetDefaultMessage() => describe = _defaultDescribe;
+
+  /// Starts a check that can be given a message before it runs.
+  ///
+  /// The shape CASL.js uses throughout its documentation:
+  ///
+  /// ```dart
+  /// ForbiddenError.from(ability)
+  ///     .setMessage('You cannot update posts')
+  ///     .throwUnlessCan('update', 'Post');
+  /// ```
+  ///
+  /// [AbilityGuard.throwUnlessCan] is the shorter way to say the same thing
+  /// when the rule's own reason is message enough, which is usually.
+  static ForbiddenErrorCheck<A, S> from<A extends String, S extends String>(
+    Ability<A, S> ability,
+  ) => ForbiddenErrorCheck<A, S>._(ability);
+
   /// What was attempted.
   final String action;
 
@@ -45,6 +88,10 @@ final class ForbiddenError implements Exception {
 
   /// The field, when the check was about one.
   final String? field;
+
+  /// The ability that refused, for a caller that wants to ask it something
+  /// else — which rule decided, say.
+  final Ability? ability;
 
   /// What the forbidding rule said, if it said anything.
   ///
@@ -68,13 +115,41 @@ final class ForbiddenError implements Exception {
       'Cannot execute "${error.action}" on "${error.subjectType}"';
 }
 
+/// A permission check that can be given a message before it runs.
+///
+/// Created by [ForbiddenError.from]. Immutable, so a check with a message set
+/// on it can be held and reused.
+final class ForbiddenErrorCheck<A extends String, S extends String> {
+  const ForbiddenErrorCheck._(this._ability, [this._message]);
+
+  final Ability<A, S> _ability;
+  final String? _message;
+
+  /// The message to use instead of the rule's own reason.
+  ///
+  /// Returns a new check rather than mutating this one, so a shared base check
+  /// cannot be changed underneath whoever else is holding it.
+  ForbiddenErrorCheck<A, S> setMessage(String message) =>
+      ForbiddenErrorCheck<A, S>._(_ability, message);
+
+  /// Throws unless [action] is permitted.
+  void throwUnlessCan(A action, [Object? subject, String? field]) {
+    final error = unlessCan(action, subject, field);
+    if (error != null) throw error;
+  }
+
+  /// The error [throwUnlessCan] would throw, or null when it would not.
+  ForbiddenError? unlessCan(A action, [Object? subject, String? field]) =>
+      _ability.errorUnlessCan(action, subject, field, _message);
+}
+
 /// Turns a permission check into a guard that throws.
 ///
 /// For the places where a refusal is exceptional rather than expected — a use
 /// case invoked from somewhere that should already have checked. Screens ask
 /// [Ability.can] and draw accordingly; this is for the layer underneath,
 /// where being asked to do something forbidden means a bug or a stale UI.
-extension AbilityGuard on Ability {
+extension AbilityGuard<A extends String, S extends String> on Ability<A, S> {
   /// Throws a [ForbiddenError] unless [action] is permitted.
   ///
   /// ```dart
@@ -82,15 +157,9 @@ extension AbilityGuard on Ability {
   /// await repository.delete(article.id);
   /// ```
   ///
-  /// [message] overrides both the rule's reason and the default, for a call
-  /// site that knows better than either.
-  void throwUnlessCan(
-    String action, [
-    Object? subject,
-    String? field,
-    String? message,
-  ]) {
-    final error = errorUnlessCan(action, subject, field, message);
+  /// To override the message, use `ForbiddenError.from(this).setMessage(...)`.
+  void throwUnlessCan(A action, [Object? subject, String? field]) {
+    final error = errorUnlessCan(action, subject, field);
     if (error != null) throw error;
   }
 
@@ -98,8 +167,11 @@ extension AbilityGuard on Ability {
   ///
   /// For code that wants to report a refusal rather than raise one — putting
   /// the message beside a disabled button, say.
+  ///
+  /// [message] overrides both the rule's reason and the default, for a call
+  /// site that knows better than either.
   ForbiddenError? errorUnlessCan(
-    String action, [
+    A action, [
     Object? subject,
     String? field,
     String? message,
@@ -110,6 +182,7 @@ extension AbilityGuard on Ability {
     return ForbiddenError(
       action: action,
       subjectType: detectSubjectType(subject),
+      ability: this,
       subject: subject,
       field: field,
       // Only a rule that actually forbade can explain itself. Reaching here

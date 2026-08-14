@@ -61,9 +61,9 @@ mixin CaslSubject {
 /// wrapper — which has the pleasant side effect of not mutating something you
 /// were handed.
 @immutable
-final class Subject {
+final class ForcedSubject {
   /// Pairs [value] with its [type].
-  const Subject(this.type, this.value);
+  const ForcedSubject(this.type, this.value);
 
   /// The subject type, as written in the rules.
   final String type;
@@ -73,20 +73,20 @@ final class Subject {
 
   @override
   bool operator ==(Object other) =>
-      other is Subject && other.type == type && other.value == value;
+      other is ForcedSubject && other.type == type && other.value == value;
 
   @override
   int get hashCode => Object.hash(type, value);
 
   @override
-  String toString() => 'Subject($type)';
+  String toString() => 'ForcedSubject($type)';
 }
 
 /// Pairs [value] with the subject [type] it should be checked as.
 ///
 /// A function because that is how it reads at the call site, which is the only
 /// reason it is not just the constructor.
-Subject subject(String type, Object? value) => Subject(type, value);
+ForcedSubject subject(String type, Object? value) => ForcedSubject(type, value);
 
 /// Works out which subject type an arbitrary object should be checked as.
 ///
@@ -94,9 +94,26 @@ Subject subject(String type, Object? value) => Subject(type, value);
 /// get wrapped by [subject] — a generated model with a `$type` field, say.
 typedef DetectSubjectType = String Function(Object value);
 
+/// Works out the subject type for the objects it recognises, and defers on the
+/// rest by returning null.
+///
+/// The friendlier half of [DetectSubjectType], and what `createMongoAbility`
+/// takes. Returning null falls back to [detectSubjectTypeByRuntimeType], so a
+/// detector that only knows about your own models does not have to reimplement
+/// — or accidentally disable — the handling of [ForcedSubject] and
+/// [CaslSubject]:
+///
+/// ```dart
+/// createMongoAbility(
+///   rules,
+///   detectSubjectType: (value) => value is ApiModel ? value.typeName : null,
+/// );
+/// ```
+typedef PartialDetectSubjectType = String? Function(Object value);
+
 /// The default, in order of how much it can be trusted.
 ///
-/// 1. a [Subject] wrapper — stated outright,
+/// 1. a [ForcedSubject] wrapper — stated outright,
 /// 2. a [CaslSubject] — declared by the type,
 /// 3. `runtimeType.toString()` — **a guess**.
 ///
@@ -105,7 +122,7 @@ typedef DetectSubjectType = String Function(Object value);
 /// release builds only. Any model that reaches this path should use
 /// [CaslSubject] or [subject] instead.
 String detectSubjectTypeByRuntimeType(Object value) => switch (value) {
-  Subject(:final type) => type,
+  ForcedSubject(:final type) => type,
   CaslSubject(:final caslSubjectType) => caslSubjectType,
   String() => value,
   _ => value.runtimeType.toString(),
@@ -113,14 +130,14 @@ String detectSubjectTypeByRuntimeType(Object value) => switch (value) {
 
 /// The object conditions should be matched against.
 ///
-/// Unwraps a [Subject], because the wrapper carries the type and the value
-/// carries the fields.
+/// Unwraps a [ForcedSubject], because the wrapper carries the type and the
+/// value carries the fields.
 Object? subjectValue(Object? subject) =>
-    subject is Subject ? subject.value : subject;
+    subject is ForcedSubject ? subject.value : subject;
 
 /// Whether [value] names a *kind* of thing rather than being one.
 ///
 /// A bare `String` is a subject type. Everything else is an instance, including
-/// a [Subject] wrapper — which is exactly the distinction that decides whether
+/// a [ForcedSubject] wrapper — exactly the distinction that decides whether
 /// "can you read a Post?" or "can you read *this* Post?" is being asked.
 bool isSubjectType(Object? value) => value is String;

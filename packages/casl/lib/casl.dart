@@ -4,18 +4,25 @@
 /// everywhere:
 ///
 /// ```dart
-/// final ability = AbilityBuilder()
-///   ..can('read', 'Article')
-///   ..can('update', 'Article', {'authorId': currentUserId});
+/// final ability = (AbilityBuilder()
+///       ..can('read', 'Article')
+///       ..can('update', 'Article', {'authorId': currentUserId}))
+///     .build();
 ///
-/// ability.build().can('update', article);
+/// ability.can('update', article);
 /// ```
 ///
-/// The rule format is CASL.js's, byte for byte, so a server running
-/// `@casl/ability` can send its rules straight to a Dart client and both will
-/// agree about what they mean. That agreement is the point: authorisation
-/// duplicated in two languages drifts, and the drift is invisible until
-/// somebody sees a button they should not have.
+/// The rule format is CASL.js's, so a server running `@casl/ability` can send
+/// its rules straight to a Dart client and both will agree about what they
+/// mean. That agreement is the point: authorisation duplicated in two languages
+/// drifts, and the drift is invisible until somebody sees a button they should
+/// not have.
+///
+/// It is checked rather than asserted. Ninety cases are run through the real
+/// `@casl/ability` and replayed here, so a divergence fails a build instead of
+/// reaching a user. The handful of places the two deliberately differ are
+/// listed in the README, and each one is pinned by a fixture that records the
+/// reason.
 ///
 /// ## Two things worth knowing before you start
 ///
@@ -41,7 +48,12 @@ export 'src/interop/forbidden_error.dart';
 export 'src/interop/pack_rules.dart';
 export 'src/matchers.dart';
 export 'src/query/rules_to_condition.dart';
-export 'src/raw_rule.dart';
+// `oneOrMany` normalises the one-or-many shape a rule field can take. It is a
+// generic name for an internal chore, and `RawRule.of` is the way to reach it.
+export 'src/raw_rule.dart' hide oneOrMany;
 export 'src/rule.dart';
 export 'src/rule_index.dart';
-export 'src/subject.dart';
+// `subjectValue` and `isSubjectType` are how `Rule` decides whether it was
+// handed a type or an instance. Nothing outside needs them, and both are names
+// an application might reasonably want for itself.
+export 'src/subject.dart' hide isSubjectType, subjectValue;
