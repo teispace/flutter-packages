@@ -1,0 +1,88 @@
+name: Release
+
+# A tag publishes. `<package>-v<version>`, because a repository with several
+# versioned things in it needs tags that say which one.
+on:
+  push:
+    tags:
+      - "casl-v*"
+      - "casl_flutter-v*"
+      - "flutter_onboarding-v*"
+
+jobs:
+  publish:
+    name: Publish to pub.dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Required by pub.dev's OIDC flow. It is what makes this possible without a
+    # long-lived credential existing anywhere, and what gives the published
+    # version provenance back to this commit.
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.8"
+          channel: stable
+          cache: true
+
+      # The tag is the only input, so it has to be trusted as little as
+      # possible: everything below is derived from it and then checked against
+      # what is actually in the repository.
+      - name: Read the tag
+        id: tag
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          package="${tag%-v*}"
+          version="${tag##*-v}"
+
+          if [ ! -d "packages/$package" ]; then
+            echo "::error::No package named '$package' — tag was '$tag'"
+            exit 1
+          fi
+
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # A tag that disagrees with the pubspec publishes a version nobody can
+      # find the source for. Cheap to check, impossible to undo.
+      - name: The tag matches the pubspec
+        working-directory: packages/${{ steps.tag.outputs.package }}
+        run: |
+          declared=$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')
+          if [ "$declared" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::Tag says ${{ steps.tag.outputs.version }}," \
+                 "pubspec.yaml says $declared"
+            exit 1
+          fi
+
+      # And a version with no changelog entry is a release nobody can read.
+      - name: The changelog mentions it
+        working-directory: packages/${{ steps.tag.outputs.package }}
+        run: |
+          if ! grep -q "^## ${{ steps.tag.outputs.version }}" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '##" \
+                 "${{ steps.tag.outputs.version }}' heading"
+            exit 1
+          fi
+
+      - name: Activate melos
+        run: dart pub global activate melos 8.2.2
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      # The full pipeline again rather than trusting that CI ran on the commit
+      # the tag points at. A release is the one place where re-running
+      # everything is obviously worth the four minutes.
+      - name: Everything must be green
+        run: melos run ci
+
+      - name: Publish
+        working-directory: packages/${{ steps.tag.outputs.package }}
+        run: dart pub publish --force

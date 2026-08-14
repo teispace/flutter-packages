@@ -24,8 +24,10 @@ pubspec.lock
 # Hidden, so `dart format` and `dart analyze .` skip them without an exclude.
 .doc_snippets/
 
-# Coverage
-coverage/
+# Coverage output. Anchored per package rather than a bare `coverage/`, which
+# matches a directory of that name at any depth — and would swallow
+# `tool/coverage/`, which is source.
+packages/*/coverage/
 lcov.info
 
 # Working documents: the roadmap, the parity decision log, design notes. These
