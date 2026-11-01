@@ -7,6 +7,6 @@
     "generate": "node generate.mjs"
   },
   "dependencies": {
-    "@casl/ability": "7.0.1"
+    "@casl/ability": "7.1.0"
   }
 }
